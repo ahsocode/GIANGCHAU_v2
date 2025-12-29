@@ -40,7 +40,7 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json({
-    items: items.map((e) => ({
+    items: items.map((e: (typeof items)[number]) => ({
       id: e.id,
       code: e.code,
       fullName: e.fullName,
