@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateEmployeeCode } from "@/lib/employee-code";
 import type { EmploymentType } from "@/lib/employee-code";
-import { Prisma } from "@prisma/client";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,7 +11,7 @@ export async function GET(request: Request) {
   const departmentId = searchParams.get("departmentId") || undefined;
   const positionId = searchParams.get("positionId") || undefined;
 
-  const where: Prisma.EmployeeWhereInput = {};
+  const where: any = {};
   if (q && q.length > 0) {
     where.OR = [
       { code: { contains: q, mode: "insensitive" as const } },
@@ -23,7 +22,7 @@ export async function GET(request: Request) {
   if (departmentId) where.departmentId = departmentId;
   if (positionId) where.positionId = positionId;
 
-  let orderBy: Prisma.EmployeeOrderByWithRelationInput = { createdAt: order };
+  let orderBy: any = { createdAt: order };
   if (sort === "code") orderBy = { code: order };
   else if (sort === "fullName") orderBy = { fullName: order };
   else if (sort === "department") orderBy = { department: { name: order } };
