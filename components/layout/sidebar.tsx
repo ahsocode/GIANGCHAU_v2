@@ -37,7 +37,7 @@ export function Sidebar({ role }: { role: RoleKey }) {
     <>
       <nav className="space-y-1">
         {mainItems.map((it) => {
-          const active = pathname === it.href;
+          const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
           const Icon = it.icon;
           return (
             <Link
@@ -70,7 +70,7 @@ export function Sidebar({ role }: { role: RoleKey }) {
             {openHr && (
               <div className="space-y-1 pl-2">
                 {hrItems.map((it) => {
-                  const active = pathname === it.href;
+                  const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
                   const Icon = it.icon;
                   return (
                     <Link

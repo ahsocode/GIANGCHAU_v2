@@ -8,13 +8,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="flex">
+      <div className="flex flex-col md:flex-row">
         <Sidebar role={role} />
 
         <main className="flex-1">
           <div className="border-b bg-white">
-            <div className="mx-auto max-w-6xl px-4 py-4">
-              <div className="flex items-center justify-between">
+            <div className="w-full px-4 py-3 md:px-6 md:py-4">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <h1 className="text-lg font-semibold">Dashboard</h1>
                   <p className="text-sm text-muted-foreground">
@@ -25,7 +25,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             </div>
           </div>
 
-          <div className="mx-auto max-w-6xl px-4 py-6">{children}</div>
+          <div className="w-full px-4 py-4 md:px-6 md:py-6">
+            <div className="max-w-full overflow-x-auto">{children}</div>
+          </div>
         </main>
       </div>
     </div>

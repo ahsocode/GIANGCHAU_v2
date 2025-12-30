@@ -202,8 +202,11 @@ model Employee {
   gender    Gender?   @default(OTHER)
   dob       DateTime?
   phone     String?
+  personalEmail String?
   address   String?
   avatarUrl String?
+  socialInsuranceNumber String? @unique
+  citizenIdNumber       String? @unique
 
   isActive   Boolean   @default(true)
   joinedAt   DateTime?

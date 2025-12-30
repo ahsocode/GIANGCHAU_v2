@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ type Item = {
   accountEmail: string | null;
   isActive: boolean;
   createdAt: string;
+  avatarUrl?: string | null;
 };
 
 type Option = { id: string; name: string; code?: string };
@@ -37,6 +39,7 @@ type ApiItem = {
   accountEmail: string | null;
   isActive: boolean;
   createdAt: string;
+  avatarUrl?: string | null;
 };
 type ApiLookup = { id: string; code: string; name: string };
 
@@ -93,6 +96,7 @@ export function NhanVienCrud() {
           accountEmail: d.accountEmail,
           isActive: d.isActive,
           createdAt: d.createdAt,
+          avatarUrl: d.avatarUrl,
         }))
       );
     } catch (error: unknown) {
@@ -191,18 +195,19 @@ export function NhanVienCrud() {
         </Dialog>
       </div>
 
-      <div className="border bg-white">
+      <div className="border bg-white overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-100">
-              <TableHead className="w-12 text-center bg-slate-100">STT</TableHead>
-              <TableHead className="w-40 text-center bg-slate-100">Mã NV</TableHead>
-              <TableHead className="text-center bg-slate-100">Họ tên</TableHead>
-              <TableHead className="text-center bg-slate-100">Bộ phận</TableHead>
-              <TableHead className="text-center bg-slate-100">Chức vụ</TableHead>
-              <TableHead className="text-center bg-slate-100">Loại</TableHead>
-              <TableHead className="text-center bg-slate-100">Tài khoản</TableHead>
-              <TableHead className="w-52 text-center bg-slate-100">Thao tác</TableHead>
+              <TableHead className="w-12 text-center bg-slate-100 whitespace-nowrap">STT</TableHead>
+              <TableHead className="w-20 text-center bg-slate-100 whitespace-nowrap">Ảnh</TableHead>
+              <TableHead className="w-32 text-center bg-slate-100 whitespace-nowrap">Mã NV</TableHead>
+              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Họ tên</TableHead>
+              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Bộ phận</TableHead>
+              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Chức vụ</TableHead>
+              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Loại</TableHead>
+              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Tài khoản</TableHead>
+              <TableHead className="w-52 text-center bg-slate-100 whitespace-nowrap">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -223,8 +228,30 @@ export function NhanVienCrud() {
               filtered.map((d, idx) => (
                 <TableRow key={d.id}>
                   <TableCell className="text-sm text-slate-500 text-center">{idx + 1}</TableCell>
-                  <TableCell className="font-medium text-center">{d.code}</TableCell>
-                  <TableCell className="text-center">{d.fullName}</TableCell>
+                  <TableCell className="text-center">
+                    {d.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={d.avatarUrl}
+                        alt={d.fullName}
+                        className="mx-auto h-12 w-12 object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <div className="mx-auto h-12 w-12 bg-slate-100 border border-slate-200 flex items-center justify-center text-xs text-slate-400">
+                        N/A
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium text-center">
+                    <Link href={`/nhan-vien/${d.id}`} className="text-blue-600 hover:underline">
+                      {d.code}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Link href={`/nhan-vien/${d.id}`} className="text-blue-600 hover:underline">
+                      {d.fullName}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-center">{d.departmentName ?? "—"}</TableCell>
                   <TableCell className="text-center">{d.positionName ?? "—"}</TableCell>
                   <TableCell className="text-center">
