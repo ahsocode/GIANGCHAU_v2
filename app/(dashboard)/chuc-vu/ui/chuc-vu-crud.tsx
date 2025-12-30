@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ export function ChucVuCrud() {
   const [openEditId, setOpenEditId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   async function fetchItems(params?: { q?: string; sort?: string; order?: string }) {
     setLoading(true);
@@ -78,20 +79,21 @@ export function ChucVuCrud() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-col gap-3">
+        {/* Search and filters */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Input
             placeholder="Tìm theo mã / tên chức vụ..."
             value={q}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
-            className="sm:max-w-xs rounded-none"
+            className="rounded-none w-full sm:max-w-xs focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-slate-300"
           />
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-600">Sắp xếp:</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-sm text-slate-600 whitespace-nowrap">Sắp xếp:</label>
             <select
               value={sortField}
               onChange={(e) => setSortField(e.target.value as typeof sortField)}
-              className="rounded-none border border-slate-300 bg-white px-2 py-1 text-sm"
+              className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm flex-1 min-w-30"
             >
               <option value="createdAt">Ngày tạo</option>
               <option value="name">Tên</option>
@@ -101,7 +103,7 @@ export function ChucVuCrud() {
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-              className="rounded-none border border-slate-300 bg-white px-2 py-1 text-sm"
+              className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm flex-1 min-w-25"
             >
               <option value="asc">Tăng dần</option>
               <option value="desc">Giảm dần</option>
@@ -109,13 +111,14 @@ export function ChucVuCrud() {
           </div>
         </div>
 
+        {/* Add button */}
         <Dialog open={openCreate} onOpenChange={setOpenCreate}>
           <DialogTrigger asChild>
-            <Button className="rounded-none border-none bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600">
+            <Button className="rounded-none border-none bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600 w-full sm:w-auto sm:self-start">
               Thêm chức vụ
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-none">
+          <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Thêm chức vụ</DialogTitle>
             </DialogHeader>
@@ -144,15 +147,15 @@ export function ChucVuCrud() {
         </Dialog>
       </div>
 
-      <div className="border bg-white">
+      <div className="border bg-white overflow-x-auto rounded-lg">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-100">
-              <TableHead className="w-12 text-center bg-slate-100">STT</TableHead>
-              <TableHead className="w-40 text-center bg-slate-100">Mã</TableHead>
-              <TableHead className="text-center bg-slate-100">Tên chức vụ</TableHead>
-              <TableHead className="w-32 text-center bg-slate-100">Số nhân viên</TableHead>
-              <TableHead className="w-52 text-center bg-slate-100">Thao tác</TableHead>
+              <TableHead className="w-12 text-center bg-slate-100 whitespace-nowrap hidden sm:table-cell">STT</TableHead>
+              <TableHead className="w-32 text-center bg-slate-100 whitespace-nowrap hidden sm:table-cell">Mã</TableHead>
+              <TableHead className="min-w-50 text-center bg-slate-100 whitespace-nowrap">Tên chức vụ</TableHead>
+              <TableHead className="w-32 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Số nhân viên</TableHead>
+              <TableHead className="w-36 text-center bg-slate-100 whitespace-nowrap">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -172,12 +175,14 @@ export function ChucVuCrud() {
             ) : (
               filtered.map((d, idx) => (
                 <TableRow key={d.id}>
-                  <TableCell className="text-sm text-slate-500 text-center">{idx + 1}</TableCell>
-                  <TableCell className="font-medium text-center">{d.ma}</TableCell>
+                  <TableCell className="text-sm text-slate-500 text-center hidden sm:table-cell">
+                    {idx + 1}
+                  </TableCell>
+                  <TableCell className="font-medium text-center hidden sm:table-cell">{d.ma}</TableCell>
                   <TableCell className="text-center">{d.ten}</TableCell>
-                  <TableCell className="text-center text-sm text-slate-600">{d.soLuong}</TableCell>
+                  <TableCell className="text-center text-sm text-slate-600 hidden md:table-cell">{d.soLuong}</TableCell>
                   <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
                       <Dialog open={openEditId === d.id} onOpenChange={(v) => setOpenEditId(v ? d.id : null)}>
                         <DialogTrigger asChild>
                           <Button
@@ -188,43 +193,49 @@ export function ChucVuCrud() {
                             Sửa
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="rounded-none">
-                          <DialogHeader>
-                            <DialogTitle>Sửa chức vụ</DialogTitle>
-                          </DialogHeader>
+                          <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-lg">
+                            <DialogHeader>
+                              <DialogTitle>Sửa chức vụ</DialogTitle>
+                            </DialogHeader>
 
-                          <ChucVuForm
-                            mode="edit"
-                            defaultValues={{ ma: d.ma, ten: d.ten }}
-                            onCancel={() => setOpenEditId(null)}
-                            onSubmit={async (data) => {
-                              try {
-                                const res = await fetch(`/api/chuc-vu/${d.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify(data),
-                                });
-                                if (!res.ok) throw new Error("Cập nhật thất bại");
-                                await fetchItems({ q: debouncedQ, sort: sortField, order: sortOrder });
-                                toast.success("Đã cập nhật chức vụ");
-                                setOpenEditId(null);
-                              } catch (error: unknown) {
-                                const message = error instanceof Error ? error.message : "Cập nhật thất bại";
-                                toast.error(message);
+                            <ChucVuForm
+                              mode="edit"
+                              defaultValues={{ ma: d.ma, ten: d.ten }}
+                              onCancel={() => setOpenEditId(null)}
+                              onSubmit={async (data) => {
+                                try {
+                                  const res = await fetch(`/api/chuc-vu/${d.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify(data),
+                                  });
+                                  if (!res.ok) throw new Error("Cập nhật thất bại");
+                                  await fetchItems({ q: debouncedQ, sort: sortField, order: sortOrder });
+                                  toast.success("Đã cập nhật chức vụ");
+                                  setOpenEditId(null);
+                                } catch (error: unknown) {
+                                  const message = error instanceof Error ? error.message : "Cập nhật thất bại";
+                                  toast.error(message);
+                                }
+                              }}
+                              extraActions={
+                                <div className="flex justify-end">
+                                  <Button
+                                    variant="destructive"
+                                    className="rounded-none bg-red-500 text-white hover:bg-red-600"
+                                    onClick={() => {
+                                      setOpenEditId(null);
+                                      setDeleteTarget(d);
+                                      setConfirmDeleteOpen(true);
+                                    }}
+                                  >
+                                    Xoá chức vụ
+                                  </Button>
+                                </div>
                               }
-                            }}
-                          />
-                        </DialogContent>
-                      </Dialog>
-
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="rounded-none bg-red-500 text-white hover:bg-red-600"
-                        onClick={() => setDeleteTarget(d)}
-                      >
-                        Xoá
-                      </Button>
+                            />
+                          </DialogContent>
+                        </Dialog>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -234,8 +245,16 @@ export function ChucVuCrud() {
         </Table>
       </div>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
-        <DialogContent className="rounded-none max-w-sm">
+      <Dialog
+        open={!!deleteTarget && confirmDeleteOpen}
+        onOpenChange={(v) => {
+          if (!v) {
+            setDeleteTarget(null);
+            setConfirmDeleteOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Xác nhận xoá</DialogTitle>
           </DialogHeader>
@@ -244,18 +263,21 @@ export function ChucVuCrud() {
             <span className="font-semibold text-slate-900">{deleteTarget?.ten}</span> (mã{" "}
             <span className="font-mono">{deleteTarget?.ma}</span>)?
           </p>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="destructive"
-              className="rounded-none bg-red-500 text-white hover:bg-red-600"
-              onClick={() => setDeleteTarget(null)}
+              className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
+              onClick={() => {
+                setDeleteTarget(null);
+                setConfirmDeleteOpen(false);
+              }}
             >
               Huỷ
             </Button>
             <Button
               type="button"
-              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
+              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
               onClick={async () => {
                 if (!deleteTarget) return;
                 try {
@@ -264,6 +286,7 @@ export function ChucVuCrud() {
                   await fetchItems({ q: debouncedQ, sort: sortField, order: sortOrder });
                   toast.success("Đã xoá chức vụ");
                   setDeleteTarget(null);
+                  setConfirmDeleteOpen(false);
                 } catch (error: unknown) {
                   const message = error instanceof Error ? error.message : "Xoá thất bại";
                   toast.error(message);
@@ -302,6 +325,7 @@ function ChucVuForm(props: {
   defaultValues?: { ma?: string; ten: string };
   onCancel: () => void;
   onSubmit: (data: { ma: string; ten: string }) => Promise<void>;
+  extraActions?: ReactNode;
 }) {
   const [ten, setTen] = useState(props.defaultValues?.ten ?? "");
   const [maCustom, setMaCustom] = useState(props.defaultValues?.ma ?? "");
@@ -357,11 +381,11 @@ function ChucVuForm(props: {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
           <Button
             type="button"
             variant="destructive"
-            className="rounded-none bg-red-500 text-white hover:bg-red-600"
+            className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
             onClick={props.onCancel}
             disabled={loading}
           >
@@ -371,8 +395,8 @@ function ChucVuForm(props: {
             type="submit"
             className={
               props.mode === "create"
-                ? "rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
-                : "rounded-none bg-blue-500 text-white hover:bg-blue-600"
+                ? "rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
+                : "rounded-none bg-blue-500 text-white hover:bg-blue-600 w-full sm:w-auto"
             }
             disabled={loading}
           >
@@ -382,7 +406,7 @@ function ChucVuForm(props: {
       </form>
 
       <Dialog open={confirmOpen} onOpenChange={(v) => setConfirmOpen(v)}>
-        <DialogContent className="rounded-none max-w-sm">
+        <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Xác nhận {props.mode === "create" ? "tạo" : "cập nhật"} chức vụ</DialogTitle>
           </DialogHeader>
@@ -394,11 +418,11 @@ function ChucVuForm(props: {
               Tên: <span className="font-semibold text-slate-900">{ten}</span>
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="destructive"
-              className="rounded-none bg-red-500 text-white hover:bg-red-600"
+              className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
               onClick={() => setConfirmOpen(false)}
               disabled={loading}
             >
@@ -406,7 +430,7 @@ function ChucVuForm(props: {
             </Button>
             <Button
               type="button"
-              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
+              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
               onClick={async () => {
                 try {
                   setLoading(true);
@@ -423,6 +447,8 @@ function ChucVuForm(props: {
           </div>
         </DialogContent>
       </Dialog>
+
+      {props.extraActions}
     </>
   );
 }
