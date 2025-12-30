@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ export function BoPhanCrud() {
   const [openEditId, setOpenEditId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   async function fetchItems(params?: { q?: string; sort?: string; order?: string }) {
     setLoading(true);
@@ -78,23 +79,24 @@ export function BoPhanCrud() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-col gap-3">
+        {/* Search and filters */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Input
             placeholder="Tìm theo mã / tên bộ phận..."
             value={q}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
-            className="sm:max-w-xs rounded-none"
+            className="rounded-none w-full sm:max-w-xs focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-slate-300"
           />
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-600">Sắp xếp:</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-sm text-slate-600 whitespace-nowrap">Sắp xếp:</label>
             <select
               value={sortField}
               onChange={(e) => {
                 const value = e.target.value as typeof sortField;
                 setSortField(value);
               }}
-              className="rounded-none border border-slate-300 bg-white px-2 py-1 text-sm"
+              className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm flex-1 min-w-30"
             >
               <option value="createdAt">Ngày tạo</option>
               <option value="name">Tên</option>
@@ -107,7 +109,7 @@ export function BoPhanCrud() {
                 const value = e.target.value as typeof sortOrder;
                 setSortOrder(value);
               }}
-              className="rounded-none border border-slate-300 bg-white px-2 py-1 text-sm"
+              className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm flex-1 min-w-25"
             >
               <option value="asc">Tăng dần</option>
               <option value="desc">Giảm dần</option>
@@ -115,13 +117,14 @@ export function BoPhanCrud() {
           </div>
         </div>
 
+        {/* Add button */}
         <Dialog open={openCreate} onOpenChange={setOpenCreate}>
           <DialogTrigger asChild>
-            <Button className="rounded-none border-none bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600">
+            <Button className="rounded-none border-none bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600 w-full sm:w-auto sm:self-start">
               Thêm bộ phận
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-none">
+          <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Thêm bộ phận</DialogTitle>
             </DialogHeader>
@@ -150,87 +153,97 @@ export function BoPhanCrud() {
         </Dialog>
       </div>
 
-      <div className="border bg-white">
+      <div className="border bg-white overflow-x-auto rounded-lg">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-100">
-              <TableHead className="w-12 text-center bg-slate-100">STT</TableHead>
-              <TableHead className="w-40 text-center bg-slate-100">Mã</TableHead>
-              <TableHead className="text-center bg-slate-100">Tên bộ phận</TableHead>
-              <TableHead className="w-32 text-center bg-slate-100">Số nhân viên</TableHead>
-              <TableHead className="w-52 text-center bg-slate-100">Thao tác</TableHead>
+              <TableHead className="w-12 text-center bg-slate-100 whitespace-nowrap hidden sm:table-cell">STT</TableHead>
+              <TableHead className="w-32 text-center bg-slate-100 whitespace-nowrap hidden sm:table-cell">Mã</TableHead>
+              <TableHead className="min-w-50 text-center bg-slate-100 whitespace-nowrap">Tên bộ phận</TableHead>
+              <TableHead className="w-32 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">
+                Số nhân viên
+              </TableHead>
+              <TableHead className="w-36 text-center bg-slate-100 whitespace-nowrap">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                   Đang tải...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                   Không có dữ liệu
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((d, idx) => (
                 <TableRow key={d.id}>
-                  <TableCell className="text-sm text-slate-500 text-center">{idx + 1}</TableCell>
-                  <TableCell className="font-medium text-center">{d.ma}</TableCell>
+                  <TableCell className="text-sm text-slate-500 text-center hidden sm:table-cell">
+                    {idx + 1}
+                  </TableCell>
+                  <TableCell className="font-medium text-center hidden sm:table-cell">{d.ma}</TableCell>
                   <TableCell className="text-center">{d.ten}</TableCell>
-                  <TableCell className="text-center text-sm text-slate-600">{d.soLuong}</TableCell>
+                  <TableCell className="text-center text-sm text-slate-600 hidden md:table-cell">{d.soLuong}</TableCell>
                   <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
-                    <Dialog open={openEditId === d.id} onOpenChange={(v) => setOpenEditId(v ? d.id : null)}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-none border-blue-500 text-blue-600 hover:bg-blue-50"
-                >
-                  Sửa
-                </Button>
-              </DialogTrigger>
-                      <DialogContent className="rounded-none">
-                        <DialogHeader>
-                          <DialogTitle>Sửa bộ phận</DialogTitle>
-                        </DialogHeader>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      <Dialog open={openEditId === d.id} onOpenChange={(v) => setOpenEditId(v ? d.id : null)}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-none border-blue-500 text-blue-600 hover:bg-blue-50"
+                          >
+                            Sửa
+                          </Button>
+                        </DialogTrigger>
+                          <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-lg">
+                            <DialogHeader>
+                              <DialogTitle>Sửa bộ phận</DialogTitle>
+                            </DialogHeader>
 
-                          <BoPhanForm
-                            mode="edit"
-                            defaultValues={{ ma: d.ma, ten: d.ten }}
-                            onCancel={() => setOpenEditId(null)}
-                            onSubmit={async (data) => {
-                              try {
-                                const res = await fetch(`/api/bo-phan/${d.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify(data),
-                                });
-                                if (!res.ok) throw new Error("Cập nhật thất bại");
-                                await fetchItems();
-                                toast.success("Đã cập nhật bộ phận");
-                                setOpenEditId(null);
-                              } catch (error: unknown) {
-                                const message = error instanceof Error ? error.message : "Cập nhật thất bại";
-                                toast.error(message);
+                            <BoPhanForm
+                              mode="edit"
+                              defaultValues={{ ma: d.ma, ten: d.ten }}
+                              onCancel={() => setOpenEditId(null)}
+                              onSubmit={async (data) => {
+                                try {
+                                  const res = await fetch(`/api/bo-phan/${d.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify(data),
+                                  });
+                                  if (!res.ok) throw new Error("Cập nhật thất bại");
+                                  await fetchItems();
+                                  toast.success("Đã cập nhật bộ phận");
+                                  setOpenEditId(null);
+                                } catch (error: unknown) {
+                                  const message = error instanceof Error ? error.message : "Cập nhật thất bại";
+                                  toast.error(message);
+                                }
+                              }}
+                              extraActions={
+                                <div className="flex justify-end">
+                                  <Button
+                                    variant="destructive"
+                                    className="rounded-none bg-red-500 text-white hover:bg-red-600"
+                                    onClick={() => {
+                                      setOpenEditId(null);
+                                      setDeleteTarget(d);
+                                      setConfirmDeleteOpen(true);
+                                    }}
+                                  >
+                                    Xoá bộ phận
+                                  </Button>
+                                </div>
                               }
-                            }}
-                          />
-                        </DialogContent>
-                    </Dialog>
-
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="rounded-none bg-red-500 text-white hover:bg-red-600"
-                      onClick={() => setDeleteTarget(d)}
-                    >
-                      Xoá
-                    </Button>
+                            />
+                          </DialogContent>
+                        </Dialog>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -240,8 +253,13 @@ export function BoPhanCrud() {
         </Table>
       </div>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
-        <DialogContent className="rounded-none max-w-sm">
+      <Dialog open={!!deleteTarget && confirmDeleteOpen} onOpenChange={(v) => {
+        if (!v) {
+          setDeleteTarget(null);
+          setConfirmDeleteOpen(false);
+        }
+      }}>
+        <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Xác nhận xoá</DialogTitle>
           </DialogHeader>
@@ -250,18 +268,18 @@ export function BoPhanCrud() {
             <span className="font-semibold text-slate-900">{deleteTarget?.ten}</span> (mã{" "}
             <span className="font-mono">{deleteTarget?.ma}</span>)?
           </p>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="destructive"
-              className="rounded-none bg-red-500 text-white hover:bg-red-600"
+              className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
               onClick={() => setDeleteTarget(null)}
             >
               Huỷ
             </Button>
             <Button
               type="button"
-              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
+              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
               onClick={async () => {
                 if (!deleteTarget) return;
                 try {
@@ -308,6 +326,7 @@ function BoPhanForm(props: {
   defaultValues?: { ma?: string; ten: string };
   onCancel: () => void;
   onSubmit: (data: { ma: string; ten: string }) => Promise<void>;
+  extraActions?: ReactNode;
 }) {
   const [ten, setTen] = useState(props.defaultValues?.ten ?? "");
   const [maCustom, setMaCustom] = useState(props.defaultValues?.ma ?? "");
@@ -363,11 +382,11 @@ function BoPhanForm(props: {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
           <Button
             type="button"
             variant="destructive"
-            className="rounded-none bg-red-500 text-white hover:bg-red-600"
+            className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
             onClick={props.onCancel}
             disabled={loading}
           >
@@ -377,8 +396,8 @@ function BoPhanForm(props: {
             type="submit"
             className={
               props.mode === "create"
-                ? "rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
-                : "rounded-none bg-blue-500 text-white hover:bg-blue-600"
+                ? "rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
+                : "rounded-none bg-blue-500 text-white hover:bg-blue-600 w-full sm:w-auto"
             }
             disabled={loading}
           >
@@ -388,7 +407,7 @@ function BoPhanForm(props: {
       </form>
 
       <Dialog open={confirmOpen} onOpenChange={(v) => setConfirmOpen(v)}>
-        <DialogContent className="rounded-none max-w-sm">
+        <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Xác nhận {props.mode === "create" ? "tạo" : "cập nhật"} bộ phận</DialogTitle>
           </DialogHeader>
@@ -400,35 +419,37 @@ function BoPhanForm(props: {
               Tên: <span className="font-semibold text-slate-900">{ten}</span>
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="destructive"
-              className="rounded-none bg-red-500 text-white hover:bg-red-600"
-            onClick={() => setConfirmOpen(false)}
-            disabled={loading}
-          >
-            Huỷ
-          </Button>
-          <Button
-            type="button"
-            className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
-            onClick={async () => {
-              try {
-                setLoading(true);
-                await props.onSubmit({ ma: ma.trim(), ten });
-                setConfirmOpen(false);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={loading}
-          >
-            Xác nhận
-          </Button>
+              className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
+              onClick={() => setConfirmOpen(false)}
+              disabled={loading}
+            >
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
+              onClick={async () => {
+                try {
+                  setLoading(true);
+                  await props.onSubmit({ ma: ma.trim(), ten });
+                  setConfirmOpen(false);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              Xác nhận
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {props.extraActions}
     </>
   );
 }

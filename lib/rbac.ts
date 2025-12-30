@@ -25,5 +25,6 @@ export function getMenuByRole(role: RoleKey): MenuItem[] {
   if (role === "ADMIN") return [...base, ...nhanSu];
   if (role === "DIRECTOR") return [...base, ...nhanSu];
   if (role === "STAFF") return [...base, ...nhanSu];
-  return [...base];
+  // Nhân viên chỉ xem cụm cá nhân, không hiển thị menu chung
+  return [];
 }

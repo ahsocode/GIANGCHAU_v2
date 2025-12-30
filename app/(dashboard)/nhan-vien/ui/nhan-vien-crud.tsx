@@ -47,8 +47,13 @@ export function NhanVienCrud() {
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState<string>("");
   const [debouncedQ, setDebouncedQ] = useState<string>("");
-  const [sortField, setSortField] = useState<"createdAt" | "code" | "fullName">("createdAt");
+  const [sortField, setSortField] = useState<
+    "createdAt" | "code" | "fullName" | "position" | "department" | "employmentType"
+  >("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [filterDepartmentId, setFilterDepartmentId] = useState<string>("");
+  const [filterPositionId, setFilterPositionId] = useState<string>("");
+  const [filterEmploymentType, setFilterEmploymentType] = useState<string>("");
   const [openCreate, setOpenCreate] = useState(false);
   const [openEditId, setOpenEditId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
@@ -72,13 +77,23 @@ export function NhanVienCrud() {
     }
   }
 
-  async function fetchItems(params?: { q?: string; sort?: string; order?: string }) {
+  async function fetchItems(params?: {
+    q?: string;
+    sort?: string;
+    order?: string;
+    departmentId?: string;
+    positionId?: string;
+    employmentType?: string;
+  }) {
     setLoading(true);
     try {
       const query = new URLSearchParams();
       if (params?.q) query.set("q", params.q);
       if (params?.sort) query.set("sort", params.sort);
       if (params?.order) query.set("order", params.order);
+      if (params?.departmentId) query.set("departmentId", params.departmentId);
+      if (params?.positionId) query.set("positionId", params.positionId);
+      if (params?.employmentType) query.set("employmentType", params.employmentType);
       const res = await fetch(`/api/nhan-vien${query.toString() ? `?${query.toString()}` : ""}`);
       if (!res.ok) throw new Error("Lỗi tải danh sách");
       const data = (await res.json()) as { items?: ApiItem[] };
@@ -113,8 +128,15 @@ export function NhanVienCrud() {
   }, [q]);
 
   useEffect(() => {
-    fetchItems({ q: debouncedQ, sort: sortField, order: sortOrder });
-  }, [debouncedQ, sortField, sortOrder]);
+    fetchItems({
+      q: debouncedQ,
+      sort: sortField,
+      order: sortOrder,
+      departmentId: filterDepartmentId || undefined,
+      positionId: filterPositionId || undefined,
+      employmentType: filterEmploymentType || undefined,
+    });
+  }, [debouncedQ, sortField, sortOrder, filterDepartmentId, filterPositionId, filterEmploymentType]);
 
   useEffect(() => {
     fetchLookups();
@@ -128,43 +150,86 @@ export function NhanVienCrud() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-col gap-3">
+        {/* Search and filters */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Input
             placeholder="Tìm theo mã / tên nhân viên..."
             value={q}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
-            className="sm:max-w-xs rounded-none"
+            className="rounded-none w-full sm:max-w-xs focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-slate-300"
           />
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-600">Sắp xếp:</label>
-            <select
-              value={sortField}
-              onChange={(e) => setSortField(e.target.value as typeof sortField)}
-              className="rounded-none border border-slate-300 bg-white px-2 py-1 text-sm"
-            >
-              <option value="createdAt">Ngày tạo</option>
-              <option value="fullName">Tên</option>
-              <option value="code">Mã</option>
-            </select>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-              className="rounded-none border border-slate-300 bg-white px-2 py-1 text-sm"
-            >
-              <option value="asc">Tăng dần</option>
-              <option value="desc">Giảm dần</option>
-            </select>
+          <div className="flex flex-col lg:flex-row gap-2 lg:items-center w-full">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-sm text-slate-600 whitespace-nowrap">Sắp xếp:</label>
+              <select
+                value={sortField}
+                onChange={(e) => setSortField(e.target.value as typeof sortField)}
+                className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm flex-1 min-w-30"
+              >
+                <option value="createdAt">Ngày tạo</option>
+                <option value="fullName">Tên</option>
+                <option value="code">Mã</option>
+                <option value="department">Bộ phận</option>
+                <option value="position">Chức vụ</option>
+                <option value="employmentType">Loại nhân viên</option>
+              </select>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+                className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm flex-1 min-w-25"
+              >
+                <option value="asc">Tăng dần</option>
+                <option value="desc">Giảm dần</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-sm text-slate-600 whitespace-nowrap">Bộ lọc:</label>
+              <select
+                value={filterDepartmentId}
+                onChange={(e) => setFilterDepartmentId(e.target.value)}
+                className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm min-w-32"
+              >
+                <option value="">Tất cả bộ phận</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filterPositionId}
+                onChange={(e) => setFilterPositionId(e.target.value)}
+                className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm min-w-32"
+              >
+                <option value="">Tất cả chức vụ</option>
+                {positions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filterEmploymentType}
+                onChange={(e) => setFilterEmploymentType(e.target.value)}
+                className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm min-w-28"
+              >
+                <option value="">Tất cả loại</option>
+                <option value="CT">Chính thức</option>
+                <option value="TV">Thời vụ</option>
+              </select>
+            </div>
           </div>
         </div>
 
+        {/* Add button */}
         <Dialog open={openCreate} onOpenChange={setOpenCreate}>
           <DialogTrigger asChild>
-            <Button className="rounded-none border-none bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600">
+            <Button className="rounded-none border-none bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600 w-full sm:w-auto sm:self-start">
               Thêm nhân viên
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-none">
+          <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Thêm nhân viên</DialogTitle>
             </DialogHeader>
@@ -195,49 +260,56 @@ export function NhanVienCrud() {
         </Dialog>
       </div>
 
-      <div className="border bg-white overflow-x-auto">
+      {/* Table with horizontal scroll */}
+      <div className="border bg-white overflow-x-auto rounded-lg">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-100">
-              <TableHead className="w-12 text-center bg-slate-100 whitespace-nowrap">STT</TableHead>
-              <TableHead className="w-20 text-center bg-slate-100 whitespace-nowrap">Ảnh</TableHead>
-              <TableHead className="w-32 text-center bg-slate-100 whitespace-nowrap">Mã NV</TableHead>
-              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Họ tên</TableHead>
-              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Bộ phận</TableHead>
-              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Chức vụ</TableHead>
-              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Loại</TableHead>
-              <TableHead className="text-center bg-slate-100 whitespace-nowrap">Tài khoản</TableHead>
-              <TableHead className="w-52 text-center bg-slate-100 whitespace-nowrap">Thao tác</TableHead>
+              <TableHead className="w-12 text-center bg-slate-100 whitespace-nowrap sticky left-0 z-10 hidden sm:table-cell">
+                STT
+              </TableHead>
+              <TableHead className="w-20 text-center bg-slate-100 whitespace-nowrap hidden sm:table-cell">Ảnh</TableHead>
+              <TableHead className="min-w-25 text-center bg-slate-100 whitespace-nowrap">Mã NV</TableHead>
+              <TableHead className="min-w-45 text-center bg-slate-100 whitespace-nowrap">Họ tên</TableHead>
+              <TableHead className="min-w-30 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Bộ phận</TableHead>
+              <TableHead className="min-w-30 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Chức vụ</TableHead>
+              <TableHead className="w-24 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Loại</TableHead>
+              <TableHead className="min-w-45 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Tài khoản</TableHead>
+              <TableHead className="w-48 text-center bg-slate-100 whitespace-nowrap sticky right-0 z-10 hidden sm:table-cell">
+                Thao tác
+              </TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                   Đang tải...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                   Không có dữ liệu
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((d, idx) => (
                 <TableRow key={d.id}>
-                  <TableCell className="text-sm text-slate-500 text-center">{idx + 1}</TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-sm text-slate-500 text-center sticky left-0 bg-white hidden sm:table-cell">
+                    {idx + 1}
+                  </TableCell>
+                  <TableCell className="text-center hidden sm:table-cell">
                     {d.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={d.avatarUrl}
                         alt={d.fullName}
-                        className="mx-auto h-12 w-12 object-cover border border-slate-200"
+                        className="mx-auto h-10 w-10 sm:h-12 sm:w-12 object-cover border border-slate-200 rounded"
                       />
                     ) : (
-                      <div className="mx-auto h-12 w-12 bg-slate-100 border border-slate-200 flex items-center justify-center text-xs text-slate-400">
+                      <div className="mx-auto h-10 w-10 sm:h-12 sm:w-12 bg-slate-100 border border-slate-200 rounded flex items-center justify-center text-xs text-slate-400">
                         N/A
                       </div>
                     )}
@@ -252,31 +324,35 @@ export function NhanVienCrud() {
                       {d.fullName}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-center">{d.departmentName ?? "—"}</TableCell>
-                  <TableCell className="text-center">{d.positionName ?? "—"}</TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center text-sm hidden md:table-cell">{d.departmentName ?? "—"}</TableCell>
+                  <TableCell className="text-center text-sm hidden md:table-cell">{d.positionName ?? "—"}</TableCell>
+                  <TableCell className="text-center hidden md:table-cell">
                     {d.employmentType === "TV" ? (
-                      <span className="text-sm text-amber-600">Thời vụ</span>
+                      <span className="text-xs sm:text-sm text-amber-600 font-medium">Thời vụ</span>
                     ) : (
-                      <span className="text-sm text-emerald-600">Chính thức</span>
+                      <span className="text-xs sm:text-sm text-emerald-600 font-medium">Chính thức</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-center">
-                    {d.accountEmail ? <span className="text-sm text-slate-800">{d.accountEmail}</span> : "—"}
+                  <TableCell className="text-center text-sm hidden md:table-cell">
+                    {d.accountEmail ? (
+                      <span className="text-slate-800 break-all">{d.accountEmail}</span>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
+                  <TableCell className="text-center sticky right-0 bg-white hidden sm:table-cell sm:sticky sm:right-0">
+                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
                       <Dialog open={openEditId === d.id} onOpenChange={(v) => setOpenEditId(v ? d.id : null)}>
                         <DialogTrigger asChild>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-none border-blue-500 text-blue-600 hover:bg-blue-50"
+                            className="rounded-none border-blue-500 text-blue-600 hover:bg-blue-50 text-xs sm:text-sm"
                           >
                             Sửa
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="rounded-none">
+                        <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-lg">
                           <DialogHeader>
                             <DialogTitle>Sửa nhân viên</DialogTitle>
                           </DialogHeader>
@@ -317,7 +393,7 @@ export function NhanVienCrud() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        className="rounded-none bg-red-500 text-white hover:bg-red-600"
+                        className="rounded-none bg-red-500 text-white hover:bg-red-600 text-xs sm:text-sm"
                         onClick={() => setDeleteTarget(d)}
                       >
                         Xoá
@@ -332,7 +408,7 @@ export function NhanVienCrud() {
       </div>
 
       <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
-        <DialogContent className="rounded-none max-w-sm">
+        <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Xác nhận xoá</DialogTitle>
           </DialogHeader>
@@ -340,18 +416,18 @@ export function NhanVienCrud() {
             Bạn chắc chắn xoá nhân viên <span className="font-semibold text-slate-900">{deleteTarget?.fullName}</span>{" "}
             (mã <span className="font-mono">{deleteTarget?.code}</span>)?
           </p>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="destructive"
-              className="rounded-none bg-red-500 text-white hover:bg-red-600"
+              className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
               onClick={() => setDeleteTarget(null)}
             >
               Huỷ
             </Button>
             <Button
               type="button"
-              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
+              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
               onClick={async () => {
                 if (!deleteTarget) return;
                 try {
@@ -391,12 +467,12 @@ function NhanVienForm(props: {
   departments: Option[];
   positions: Option[];
   onCancel: () => void;
-    onSubmit: (data: {
-      fullName: string;
-      employmentType: EmploymentType;
-      departmentId?: string | null;
-      positionId?: string | null;
-    }) => Promise<void>;
+  onSubmit: (data: {
+    fullName: string;
+    employmentType: EmploymentType;
+    departmentId?: string | null;
+    positionId?: string | null;
+  }) => Promise<void>;
 }) {
   const [ten, setTen] = useState(props.defaultValues?.ten ?? "");
   const [employmentType, setEmploymentType] = useState<EmploymentType>(
@@ -413,7 +489,6 @@ function NhanVienForm(props: {
 
   const maAuto = useMemo(() => {
     if (props.mode === "edit") return props.defaultValues?.ma ?? "";
-    // hiển thị preview mã dự kiến
     const now = new Date();
     const year = now.getFullYear();
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
@@ -497,11 +572,11 @@ function NhanVienForm(props: {
           </select>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
           <Button
             type="button"
             variant="destructive"
-            className="rounded-none bg-red-500 text-white hover:bg-red-600"
+            className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
             onClick={props.onCancel}
             disabled={loading}
           >
@@ -511,8 +586,8 @@ function NhanVienForm(props: {
             type="submit"
             className={
               props.mode === "create"
-                ? "rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
-                : "rounded-none bg-blue-500 text-white hover:bg-blue-600"
+                ? "rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
+                : "rounded-none bg-blue-500 text-white hover:bg-blue-600 w-full sm:w-auto"
             }
             disabled={loading}
           >
@@ -522,24 +597,24 @@ function NhanVienForm(props: {
       </form>
 
       <Dialog open={confirmOpen} onOpenChange={(v) => setConfirmOpen(v)}>
-        <DialogContent className="rounded-none max-w-sm">
+        <DialogContent className="rounded-none max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Xác nhận {props.mode === "create" ? "tạo" : "cập nhật"} nhân viên</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-slate-700 space-y-1">
-            <div>
+            <div className="wrap-break-word">
               Mã (dự kiến/hiện tại):{" "}
               <span className="font-mono font-semibold text-slate-900">{maAuto}</span>
             </div>
-            <div>
+            <div className="wrap-break-word">
               Tên: <span className="font-semibold text-slate-900">{ten}</span>
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="destructive"
-              className="rounded-none bg-red-500 text-white hover:bg-red-600"
+              className="rounded-none bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto"
               onClick={() => setConfirmOpen(false)}
               disabled={loading}
             >
@@ -547,12 +622,12 @@ function NhanVienForm(props: {
             </Button>
             <Button
               type="button"
-              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
-            onClick={async () => {
-              try {
-                setLoading(true);
-                await props.onSubmit({
-                  fullName: ten.trim(),
+              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto"
+              onClick={async () => {
+                try {
+                  setLoading(true);
+                  await props.onSubmit({
+                    fullName: ten.trim(),
                     employmentType,
                     departmentId: departmentId || null,
                     positionId: positionId || null,

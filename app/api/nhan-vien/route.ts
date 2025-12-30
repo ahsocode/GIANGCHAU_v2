@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   const order = searchParams.get("order") === "asc" ? "asc" : "desc";
   const departmentId = searchParams.get("departmentId") || undefined;
   const positionId = searchParams.get("positionId") || undefined;
+  const employmentTypeParam = searchParams.get("employmentType");
 
   const where: Prisma.EmployeeWhereInput = {};
   if (q && q.length > 0) {
@@ -22,12 +23,16 @@ export async function GET(request: Request) {
   }
   if (departmentId) where.departmentId = departmentId;
   if (positionId) where.positionId = positionId;
+  if (employmentTypeParam === "CT" || employmentTypeParam === "TV") {
+    where.employmentType = employmentTypeParam as EmploymentType;
+  }
 
   let orderBy: Prisma.EmployeeOrderByWithRelationInput = { createdAt: order };
   if (sort === "code") orderBy = { code: order };
   else if (sort === "fullName") orderBy = { fullName: order };
   else if (sort === "department") orderBy = { department: { name: order } };
   else if (sort === "position") orderBy = { position: { name: order } };
+  else if (sort === "employmentType") orderBy = { employmentType: order };
   else orderBy = { createdAt: order };
 
   const items = await prisma.employee.findMany({

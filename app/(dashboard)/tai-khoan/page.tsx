@@ -52,23 +52,66 @@ export default function TaiKhoanPage() {
   const [emailLocked, setEmailLocked] = useState(true);
   const [passwordLocked, setPasswordLocked] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [sortField, setSortField] = useState<"createdAt" | "email" | "employee" | "status">("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [filterRole, setFilterRole] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<string>("");
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/tai-khoan");
-        if (!res.ok) throw new Error("Không tải được tài khoản");
-        const data = (await res.json()) as { items?: AccountItem[] };
-        setItems(data.items ?? []);
-      } catch (error) {
-        console.error(error);
-        toast.error("Không tải được danh sách tài khoản");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const openEdit = (acc: AccountItem) => {
+    setSelectedAcc(acc);
+    setEditStatus(acc.status === "ACTIVE" ? "ACTIVE" : "DISABLED");
+    setEditEmail(acc.email);
+    setEditPassword("");
+    setEditRole(acc.roleKey);
+    setEmailLocked(true);
+    setPasswordLocked(true);
+    setEditOpen(true);
+  };
+
+  const fetchAccounts = async (params?: {
+    q?: string;
+    sort?: string;
+    order?: string;
+    roleKey?: string;
+    status?: string;
+  }) => {
+    setLoading(true);
+    try {
+      const query = new URLSearchParams();
+      if (params?.q) query.set("q", params.q);
+      if (params?.sort) query.set("sort", params.sort);
+      if (params?.order) query.set("order", params.order);
+      if (params?.roleKey) query.set("roleKey", params.roleKey);
+      if (params?.status) query.set("status", params.status);
+      const res = await fetch(`/api/tai-khoan${query.toString() ? `?${query.toString()}` : ""}`);
+      if (!res.ok) throw new Error("Không tải được tài khoản");
+      const data = (await res.json()) as { items?: AccountItem[] };
+      setItems(data.items ?? []);
+    } catch (error) {
+      console.error(error);
+      toast.error("Không tải được danh sách tài khoản");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAccounts({
+      q: debouncedQ,
+      sort: sortField,
+      order: sortOrder,
+      roleKey: filterRole || undefined,
+      status: filterStatus || undefined,
+    });
+  }, [debouncedQ, sortField, sortOrder, filterRole, filterStatus]);
 
   const fetchEmployees = async () => {
     try {
@@ -93,16 +136,14 @@ export default function TaiKhoanPage() {
     fetchEmployees();
   }, []);
 
-  const refreshAccounts = async () => {
-    try {
-      const res = await fetch("/api/tai-khoan");
-      if (!res.ok) throw new Error();
-      const data = (await res.json()) as { items?: AccountItem[] };
-      setItems(data.items ?? []);
-    } catch (error) {
-      toast.error("Không tải được danh sách tài khoản");
-    }
-  };
+  const refreshAccounts = () =>
+    fetchAccounts({
+      q: debouncedQ,
+      sort: sortField,
+      order: sortOrder,
+      roleKey: filterRole || undefined,
+      status: filterStatus || undefined,
+    });
 
   const saveAssign = async () => {
     if (!assignEmployeeId) {
@@ -277,53 +318,126 @@ export default function TaiKhoanPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Danh sách tài khoản</h2>
-          <p className="text-sm text-muted-foreground">
-            Tài khoản gắn với nhân viên để đăng nhập. Bạn có thể sửa email trong trang chỉnh sửa nhân viên.
-          </p>
+      <div className="space-y-3">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">Danh sách tài khoản</h2>
+            <p className="text-sm text-muted-foreground leading-snug">
+              Tài khoản gắn với nhân viên để đăng nhập. Bạn có thể sửa email trong trang chỉnh sửa nhân viên.
+            </p>
+          </div>
+         <div className="w-full lg:w-auto flex flex-col sm:flex-row gap-2 sm:items-center">
+           <div className="flex flex-col sm:flex-row gap-2 sm:items-center w-full sm:w-auto">
+             <Input
+               value={q}
+               onChange={(e) => setQ(e.target.value)}
+               placeholder="Tìm email / nhân viên..."
+               className="rounded-none w-full sm:w-64 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-slate-300"
+             />
+             <div className="flex gap-2">
+               <select
+                 value={sortField}
+                 onChange={(e) => setSortField(e.target.value as typeof sortField)}
+                 className="rounded-none border border-slate-300 bg-white px-2 py-2 text-sm"
+               >
+                 <option value="createdAt">Ngày tạo</option>
+                 <option value="email">Email</option>
+                 <option value="employee">Nhân viên</option>
+                 <option value="status">Trạng thái</option>
+               </select>
+               <select
+                 value={sortOrder}
+                 onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+                 className="rounded-none border border-slate-300 bg-white px-2 py-2 text-sm"
+               >
+                 <option value="asc">Tăng dần</option>
+                 <option value="desc">Giảm dần</option>
+               </select>
+             </div>
+           </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center w-full sm:w-auto">
+              <label className="text-sm text-slate-600 whitespace-nowrap">Bộ lọc:</label>
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                className="rounded-none border border-slate-300 bg-white px-2 py-2 text-sm min-w-32"
+              >
+                <option value="">Tất cả quyền</option>
+                <option value="ADMIN">Quản trị</option>
+                <option value="DIRECTOR">Giám đốc</option>
+                <option value="STAFF">Nhân sự</option>
+                <option value="EMPLOYEE">Nhân viên</option>
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="rounded-none border border-slate-300 bg-white px-2 py-2 text-sm min-w-28"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="ACTIVE">Hoạt động</option>
+                <option value="DISABLED">Khoá</option>
+              </select>
+            </div>
+            <Button
+              type="button"
+              className="w-full sm:w-auto rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
+              onClick={() => setAssignOpen(true)}
+            >
+              Gán / tạo tài khoản
+            </Button>
+          </div>
         </div>
-        <Button
-          type="button"
-          className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
-          onClick={() => setAssignOpen(true)}
-        >
-          Gán / tạo tài khoản
-        </Button>
       </div>
 
-      <div className="overflow-x-auto border bg-white">
+      <div className="overflow-x-auto border bg-white rounded">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">#</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap hidden sm:table-cell">
+                STT
+              </th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Email</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Nhân viên</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Quyền</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Trạng thái</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Tạo lúc</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Thao tác</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap hidden md:table-cell">
+                Quyền
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap hidden lg:table-cell">
+                Trạng thái
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap hidden lg:table-cell">
+                Tạo lúc
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap hidden sm:table-cell">
+                Thao tác
+              </th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">
                   Đang tải...
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">
                   Chưa có tài khoản nào
                 </td>
               </tr>
             ) : (
               items.map((acc, idx) => (
                 <tr key={acc.id} className="border-t">
-                  <td className="px-3 py-2 text-slate-600">{idx + 1}</td>
-                  <td className="px-3 py-2 font-medium text-slate-900">{acc.email}</td>
+                  <td className="px-3 py-2 text-slate-600 hidden sm:table-cell">{idx + 1}</td>
+                  <td className="px-3 py-2 font-medium text-slate-900">
+                    <button
+                      type="button"
+                      className="text-left w-full hover:underline text-blue-700"
+                      onClick={() => openEdit(acc)}
+                    >
+                      {acc.email}
+                    </button>
+                  </td>
                   <td className="px-3 py-2">
                     {acc.employeeId ? (
                       <div className="flex flex-col">
@@ -336,7 +450,7 @@ export default function TaiKhoanPage() {
                       <span className="text-slate-500">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-700">
+                  <td className="px-3 py-2 text-slate-700 hidden md:table-cell">
                     {acc.roleKey === "ADMIN"
                       ? "Quản trị"
                       : acc.roleKey === "DIRECTOR"
@@ -345,7 +459,7 @@ export default function TaiKhoanPage() {
                           ? "Nhân sự"
                           : "Nhân viên"}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 hidden lg:table-cell">
                     {acc.status === "ACTIVE" ? (
                       <span className="text-emerald-600 font-semibold text-xs bg-emerald-50 border border-emerald-100 px-2 py-1 rounded">
                         Hoạt động
@@ -356,10 +470,10 @@ export default function TaiKhoanPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-600">
+                  <td className="px-3 py-2 text-slate-600 hidden lg:table-cell">
                     {acc.createdAt ? new Intl.DateTimeFormat("vi-VN").format(new Date(acc.createdAt)) : "—"}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 hidden sm:table-cell">
                     {acc.roleKey === "ADMIN" ? (
                       <span className="text-xs text-slate-500">—</span>
                     ) : (
@@ -368,16 +482,7 @@ export default function TaiKhoanPage() {
                           variant="outline"
                           size="sm"
                           className="rounded-none text-blue-600 border-blue-500"
-                          onClick={() => {
-                            setSelectedAcc(acc);
-                            setEditStatus(acc.status === "ACTIVE" ? "ACTIVE" : "DISABLED");
-                            setEditEmail(acc.email);
-                            setEditPassword("");
-                            setEditRole(acc.roleKey);
-                            setEmailLocked(true);
-                            setPasswordLocked(true);
-                            setEditOpen(true);
-                          }}
+                          onClick={() => openEdit(acc)}
                         >
                           Sửa
                         </Button>
@@ -401,12 +506,12 @@ export default function TaiKhoanPage() {
       </div>
 
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="rounded-none max-w-md">
+        <DialogContent className="rounded-none max-w-lg w-full max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Gán / tạo tài khoản</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="radio"
@@ -523,7 +628,7 @@ export default function TaiKhoanPage() {
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="rounded-none max-w-md">
+        <DialogContent className="rounded-none max-w-lg w-full max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Sửa tài khoản</DialogTitle>
           </DialogHeader>
@@ -630,14 +735,24 @@ export default function TaiKhoanPage() {
                     {unassigning === selectedAcc.id ? "Đang bỏ gán..." : "Bỏ gán nhân viên"}
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  className="rounded-none w-full"
-                  onClick={() => setConfirmOpen(true)}
-                  disabled={processingEdit}
-                >
-                  {processingEdit ? "Đang lưu..." : "Lưu thay đổi"}
-                </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="rounded-none w-full bg-blue-500 text-white hover:bg-blue-600"
+                    onClick={() => setConfirmOpen(true)}
+                    disabled={processingEdit}
+                  >
+                    {processingEdit ? "Đang lưu..." : "Lưu thay đổi"}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="rounded-none w-full bg-red-500 text-white hover:bg-red-600 border border-red-600"
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    disabled={processingEdit}
+                  >
+                    Xoá tài khoản
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
@@ -647,7 +762,7 @@ export default function TaiKhoanPage() {
       </Dialog>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="rounded-none max-w-sm">
+        <DialogContent className="rounded-none max-w-sm w-full">
           <DialogHeader>
             <DialogTitle>Xác nhận lưu thay đổi</DialogTitle>
           </DialogHeader>
@@ -670,6 +785,34 @@ export default function TaiKhoanPage() {
               disabled={processingEdit}
             >
               Xác nhận lưu
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogContent className="rounded-none max-w-sm w-full">
+          <DialogHeader>
+            <DialogTitle>Xác nhận xoá tài khoản</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-slate-700">
+            <p>Bạn chắc chắn muốn xoá tài khoản này? Thao tác không thể hoàn tác.</p>
+            {selectedAcc && <p className="font-semibold">{selectedAcc.email}</p>}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" className="rounded-none" onClick={() => setConfirmDeleteOpen(false)} disabled={processingEdit}>
+              Huỷ
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-none bg-red-500 text-white hover:bg-red-600 border border-red-600"
+              onClick={() => {
+                setConfirmDeleteOpen(false);
+                if (selectedAcc) deleteAccount(selectedAcc);
+              }}
+              disabled={processingEdit}
+            >
+              Xác nhận xoá
             </Button>
           </div>
         </DialogContent>
