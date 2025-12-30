@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateEmployeeCode } from "@/lib/employee-code";
 import type { EmploymentType } from "@/lib/employee-code";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const departmentId = searchParams.get("departmentId") || undefined;
   const positionId = searchParams.get("positionId") || undefined;
 
-  const where: any = {};
+  const where: Prisma.EmployeeWhereInput = {};
   if (q && q.length > 0) {
     where.OR = [
       { code: { contains: q, mode: "insensitive" as const } },
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
   if (departmentId) where.departmentId = departmentId;
   if (positionId) where.positionId = positionId;
 
-  let orderBy: any = { createdAt: order };
+  let orderBy: Prisma.EmployeeOrderByWithRelationInput = { createdAt: order };
   if (sort === "code") orderBy = { code: order };
   else if (sort === "fullName") orderBy = { fullName: order };
   else if (sort === "department") orderBy = { department: { name: order } };
@@ -51,7 +52,9 @@ export async function GET(request: Request) {
       positionName: e.position?.name ?? null,
       positionCode: e.position?.code ?? null,
       accountEmail: e.account?.email ?? null,
+      personalEmail: (e as { personalEmail?: string | null }).personalEmail ?? null,
       isActive: e.isActive,
+      avatarUrl: (e as { avatarUrl?: string | null }).avatarUrl ?? null,
       createdAt: e.createdAt,
     })),
   });
