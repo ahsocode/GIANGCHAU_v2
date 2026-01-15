@@ -12,6 +12,9 @@ export async function GET(request: Request) {
   const departmentId = searchParams.get("departmentId") || undefined;
   const positionId = searchParams.get("positionId") || undefined;
   const employmentTypeParam = searchParams.get("employmentType");
+  const withoutAccount = searchParams.get("withoutAccount") === "true";
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+  const pageSize = Math.max(1, Number(searchParams.get("pageSize") ?? "50") || 50);
 
   const where: Prisma.EmployeeWhereInput = {};
   if (q && q.length > 0) {
@@ -26,6 +29,9 @@ export async function GET(request: Request) {
   if (employmentTypeParam === "CT" || employmentTypeParam === "TV") {
     where.employmentType = employmentTypeParam as EmploymentType;
   }
+  if (withoutAccount) {
+    where.account = { is: null };
+  }
 
   let orderBy: Prisma.EmployeeOrderByWithRelationInput = { createdAt: order };
   if (sort === "code") orderBy = { code: order };
@@ -35,17 +41,25 @@ export async function GET(request: Request) {
   else if (sort === "employmentType") orderBy = { employmentType: order };
   else orderBy = { createdAt: order };
 
-  const items = await prisma.employee.findMany({
-    where,
-    orderBy,
-    include: {
-      department: { select: { id: true, name: true } },
-      position: { select: { id: true, name: true, code: true } },
-      account: { select: { id: true, email: true } },
-    },
-  });
+  const [items, total] = await Promise.all([
+    prisma.employee.findMany({
+      where,
+      orderBy,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        department: { select: { id: true, name: true } },
+        position: { select: { id: true, name: true, code: true } },
+        account: { select: { id: true, email: true } },
+      },
+    }),
+    prisma.employee.count({ where }),
+  ]);
 
   return NextResponse.json({
+    total,
+    page,
+    pageSize,
     items: items.map((e: (typeof items)[number]) => ({
       id: e.id,
       code: e.code,

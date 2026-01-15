@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GIANGCHAU_V2 - Hệ thống quản lý nhân sự
 
-## Getting Started
+Ứng dụng quản lý nhân sự nội bộ xây dựng bằng Next.js (App Router) với Prisma.
 
-First, run the development server:
+## Cài đặt nhanh
+
+```bash
+npm install
+```
+
+Thiết lập biến môi trường trong `.env` (kết nối CSDL). Sau đó chạy:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở `http://localhost:3000` để sử dụng.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Hướng dẫn sử dụng nhanh
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Đăng nhập bằng tài khoản đã có trong hệ thống.
+2. Vào Dashboard để quản lý nhân sự, bộ phận, chức vụ, tài khoản.
+3. Trang Nhân viên hỗ trợ tạo/sửa/xoá và import danh sách bằng file Excel.
 
-## Learn More
+## Tính năng hiện có
 
-To learn more about Next.js, take a look at the following resources:
+- Dashboard tổng quan.
+- Nhân viên:
+  - Danh sách nhân viên, tìm kiếm, lọc, sắp xếp.
+  - Phân trang 50 nhân viên/trang.
+  - Thêm/sửa/xoá nhân viên, xem chi tiết.
+  - Import danh sách nhân viên bằng Excel:
+    - Tải file mẫu Excel.
+    - Preview dữ liệu, chỉnh sửa trước khi xác nhận.
+    - Chọn dòng để nhập hoặc xoá khỏi danh sách preview.
+    - Kiểm tra trùng dữ liệu trong danh sách và trong CSDL.
+- Bộ phận:
+  - Danh sách, tạo/sửa/xoá.
+  - Khi tạo mới, nếu trùng mã sẽ tự sinh mã gần giống.
+- Chức vụ:
+  - Danh sách, tạo/sửa/xoá.
+  - Khi tạo mới, nếu trùng mã sẽ tự sinh mã gần giống.
+- Tài khoản:
+  - Danh sách tài khoản, gắn tài khoản với nhân viên.
+- Hồ sơ cá nhân:
+  - Xem và cập nhật thông tin cá nhân.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Lưu ý
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Import nhân viên:
+  - File mẫu có sẵn sheet hướng dẫn + danh sách mã chức vụ/bộ phận.
+  - Mã nhân viên tự sinh khi xác nhận nhập.
+  - Một số trường có ràng buộc unique (SĐT, Email, BHXH, CCCD/CMND).
 
-## Deploy on Vercel
+## Kế hoạch
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Tài liệu và chức năng sẽ tiếp tục được cập nhật trong tương lai.

@@ -16,6 +16,28 @@ export async function PATCH(
     return NextResponse.json({ message: "Mã và tên bộ phận là bắt buộc" }, { status: 400 });
   }
 
+  const existingByName = await prisma.department.findFirst({
+    where: {
+      name: { equals: ten, mode: "insensitive" as const },
+      NOT: { id },
+    },
+    select: { id: true },
+  });
+  if (existingByName) {
+    return NextResponse.json({ message: "Tên bộ phận đã tồn tại" }, { status: 400 });
+  }
+
+  const existingByCode = await prisma.department.findFirst({
+    where: {
+      code: { equals: ma, mode: "insensitive" as const },
+      NOT: { id },
+    },
+    select: { id: true },
+  });
+  if (existingByCode) {
+    return NextResponse.json({ message: "Mã bộ phận đã tồn tại" }, { status: 400 });
+  }
+
   const updated = await prisma.department.update({
     where: { id },
     data: { code: ma, name: ten },
