@@ -17,6 +17,28 @@ export async function PATCH(
     return NextResponse.json({ message: "Mã và tên chức vụ là bắt buộc" }, { status: 400 });
   }
 
+  const existingByName = await prisma.position.findFirst({
+    where: {
+      name: { equals: ten, mode: "insensitive" as const },
+      NOT: { id },
+    },
+    select: { id: true },
+  });
+  if (existingByName) {
+    return NextResponse.json({ message: "Tên chức vụ đã tồn tại" }, { status: 400 });
+  }
+
+  const existingByCode = await prisma.position.findFirst({
+    where: {
+      code: { equals: ma, mode: "insensitive" as const },
+      NOT: { id },
+    },
+    select: { id: true },
+  });
+  if (existingByCode) {
+    return NextResponse.json({ message: "Mã chức vụ đã tồn tại" }, { status: 400 });
+  }
+
   const updated = await prisma.position.update({
     where: { id },
     data: { code: ma, name: ten },

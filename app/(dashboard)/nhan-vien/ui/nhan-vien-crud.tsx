@@ -60,6 +60,9 @@ export function NhanVienCrud() {
   const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<Option[]>([]);
   const [positions, setPositions] = useState<Option[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 50;
 
   async function fetchLookups() {
     try {
@@ -84,6 +87,7 @@ export function NhanVienCrud() {
     departmentId?: string;
     positionId?: string;
     employmentType?: string;
+    page?: number;
   }) {
     setLoading(true);
     try {
@@ -94,9 +98,11 @@ export function NhanVienCrud() {
       if (params?.departmentId) query.set("departmentId", params.departmentId);
       if (params?.positionId) query.set("positionId", params.positionId);
       if (params?.employmentType) query.set("employmentType", params.employmentType);
+      query.set("page", String(params?.page ?? 1));
+      query.set("pageSize", String(pageSize));
       const res = await fetch(`/api/nhan-vien${query.toString() ? `?${query.toString()}` : ""}`);
       if (!res.ok) throw new Error("Lỗi tải danh sách");
-      const data = (await res.json()) as { items?: ApiItem[] };
+      const data = (await res.json()) as { items?: ApiItem[]; total?: number };
       setItems(
         (data.items ?? []).map((d) => ({
           id: d.id,
@@ -114,6 +120,7 @@ export function NhanVienCrud() {
           avatarUrl: d.avatarUrl,
         }))
       );
+      setTotal(data.total ?? 0);
     } catch (error: unknown) {
       console.error(error);
       toast.error("Không tải được danh sách");
@@ -128,6 +135,10 @@ export function NhanVienCrud() {
   }, [q]);
 
   useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, sortField, sortOrder, filterDepartmentId, filterPositionId, filterEmploymentType]);
+
+  useEffect(() => {
     fetchItems({
       q: debouncedQ,
       sort: sortField,
@@ -135,18 +146,16 @@ export function NhanVienCrud() {
       departmentId: filterDepartmentId || undefined,
       positionId: filterPositionId || undefined,
       employmentType: filterEmploymentType || undefined,
+      page,
     });
-  }, [debouncedQ, sortField, sortOrder, filterDepartmentId, filterPositionId, filterEmploymentType]);
+  }, [debouncedQ, sortField, sortOrder, filterDepartmentId, filterPositionId, filterEmploymentType, page]);
 
   useEffect(() => {
     fetchLookups();
   }, []);
 
-  const filtered = useMemo(() => {
-    const s = debouncedQ.trim().toLowerCase();
-    if (!s) return items;
-    return items.filter((d) => (`${d.code} ${d.fullName} ${d.departmentName ?? ""} ${d.positionName ?? ""}`).toLowerCase().includes(s));
-  }, [items, debouncedQ]);
+  const filtered = items;
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
   return (
     <div className="space-y-3">
@@ -247,7 +256,15 @@ export function NhanVienCrud() {
                     body: JSON.stringify(data),
                   });
                   if (!res.ok) throw new Error("Tạo thất bại");
-                  await fetchItems({ q: debouncedQ, sort: sortField, order: sortOrder });
+                  await fetchItems({
+                    q: debouncedQ,
+                    sort: sortField,
+                    order: sortOrder,
+                    departmentId: filterDepartmentId || undefined,
+                    positionId: filterPositionId || undefined,
+                    employmentType: filterEmploymentType || undefined,
+                    page,
+                  });
                   toast.success("Đã tạo nhân viên");
                   setOpenCreate(false);
                 } catch (error: unknown) {
@@ -298,7 +315,7 @@ export function NhanVienCrud() {
               filtered.map((d, idx) => (
                 <TableRow key={d.id}>
                   <TableCell className="text-sm text-slate-500 text-center sticky left-0 bg-white hidden sm:table-cell">
-                    {idx + 1}
+                    {(page - 1) * pageSize + idx + 1}
                   </TableCell>
                   <TableCell className="text-center hidden sm:table-cell">
                     {d.avatarUrl ? (
@@ -378,7 +395,15 @@ export function NhanVienCrud() {
                                   body: JSON.stringify(data),
                                 });
                                 if (!res.ok) throw new Error("Cập nhật thất bại");
-                                await fetchItems({ q: debouncedQ, sort: sortField, order: sortOrder });
+                                await fetchItems({
+                                  q: debouncedQ,
+                                  sort: sortField,
+                                  order: sortOrder,
+                                  departmentId: filterDepartmentId || undefined,
+                                  positionId: filterPositionId || undefined,
+                                  employmentType: filterEmploymentType || undefined,
+                                  page,
+                                });
                                 toast.success("Đã cập nhật nhân viên");
                                 setOpenEditId(null);
                               } catch (error: unknown) {
@@ -405,6 +430,35 @@ export function NhanVienCrud() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="text-sm text-slate-600">
+          Tổng: <span className="font-medium text-slate-900">{total}</span> nhân viên
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-none w-full sm:w-auto"
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            disabled={page <= 1 || loading}
+          >
+            Trang trước
+          </Button>
+          <div className="text-sm text-slate-600">
+            Trang <span className="font-medium text-slate-900">{page}</span> / {totalPages}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-none w-full sm:w-auto"
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={page >= totalPages || loading}
+          >
+            Trang sau
+          </Button>
+        </div>
       </div>
 
       <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
@@ -436,7 +490,15 @@ export function NhanVienCrud() {
                     const err = await res.json().catch(() => null);
                     throw new Error(err?.message || "Xoá thất bại");
                   }
-                  await fetchItems({ q: debouncedQ, sort: sortField, order: sortOrder });
+                  await fetchItems({
+                    q: debouncedQ,
+                    sort: sortField,
+                    order: sortOrder,
+                    departmentId: filterDepartmentId || undefined,
+                    positionId: filterPositionId || undefined,
+                    employmentType: filterEmploymentType || undefined,
+                    page,
+                  });
                   toast.success("Đã xoá nhân viên");
                   setDeleteTarget(null);
                 } catch (error: unknown) {

@@ -52,6 +52,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Mã và tên bộ phận là bắt buộc" }, { status: 400 });
   }
 
-  const created = await prisma.department.create({ data: { code: ma, name: ten } });
+  const existingByName = await prisma.department.findFirst({
+    where: { name: { equals: ten, mode: "insensitive" as const } },
+    select: { id: true },
+  });
+  if (existingByName) {
+    return NextResponse.json({ message: "Tên bộ phận đã tồn tại" }, { status: 400 });
+  }
+
+  const normalizeCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const baseCode = normalizeCode(ma) || "BP";
+  let code = baseCode;
+  let suffix = 1;
+  // If code exists, generate a close variant by appending a number.
+  // This avoids blocking creation while keeping the code similar.
+  while (await prisma.department.findUnique({ where: { code } })) {
+    code = `${baseCode}${suffix}`;
+    suffix += 1;
+  }
+
+  const created = await prisma.department.create({ data: { code, name: ten } });
   return NextResponse.json({ item: created });
 }
