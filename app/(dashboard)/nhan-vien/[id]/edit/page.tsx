@@ -34,6 +34,7 @@ type EmployeeDetail = {
   citizenIdNumber: string | null;
   isActive: boolean;
   personalEmail?: string | null;
+  salary: number | null;
 };
 
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -72,6 +73,7 @@ export default function EmployeeEditPage() {
     resignedAt: string;
     socialInsuranceNumber: string;
     citizenIdNumber: string;
+    salary: string;
     isActive: boolean;
   };
 
@@ -91,6 +93,7 @@ export default function EmployeeEditPage() {
     resignedAt: "",
     socialInsuranceNumber: "",
     citizenIdNumber: "",
+    salary: "",
     isActive: true,
   });
 
@@ -132,6 +135,7 @@ export default function EmployeeEditPage() {
           resignedAt: emp.resignedAt ? emp.resignedAt.slice(0, 10) : "",
           socialInsuranceNumber: emp.socialInsuranceNumber ?? "",
           citizenIdNumber: emp.citizenIdNumber ?? "",
+          salary: emp.salary !== null && emp.salary !== undefined ? String(emp.salary) : "",
           isActive: emp.isActive,
         };
         setForm(initialForm);
@@ -232,24 +236,25 @@ export default function EmployeeEditPage() {
         avatarUrl = url;
       }
 
-      const payload = {
-        fullName: form.fullName.trim(),
-        employmentType: form.employmentType,
-        departmentId: form.departmentId || null,
-        positionId: form.positionId || null,
-        phone: form.phone || null,
-        personalEmail: form.personalEmail || null,
-        accountEmail: form.accountEmail || null,
-        gender: form.gender || null,
-        dob: form.dob || null,
-        address: form.address || null,
-        joinedAt: form.joinedAt || null,
-        resignedAt: form.resignedAt || null,
-        socialInsuranceNumber: form.socialInsuranceNumber || null,
-        citizenIdNumber: form.citizenIdNumber || null,
-        isActive: form.isActive,
-        avatarUrl,
-      } satisfies Record<string, unknown>;
+        const payload = {
+          fullName: form.fullName.trim(),
+          employmentType: form.employmentType,
+          departmentId: form.departmentId || null,
+          positionId: form.positionId || null,
+          phone: form.phone || null,
+          personalEmail: form.personalEmail || null,
+          accountEmail: form.accountEmail || null,
+          gender: form.gender || null,
+          dob: form.dob || null,
+          address: form.address || null,
+          joinedAt: form.joinedAt || null,
+          resignedAt: form.resignedAt || null,
+          socialInsuranceNumber: form.socialInsuranceNumber || null,
+          citizenIdNumber: form.citizenIdNumber || null,
+          salary: form.salary ? Number(form.salary) : null,
+          isActive: form.isActive,
+          avatarUrl,
+        } satisfies Record<string, unknown>;
 
       const res = await fetch(`/api/nhan-vien/${id}`, {
         method: "PATCH",
@@ -295,6 +300,7 @@ export default function EmployeeEditPage() {
         resignedAt: form.resignedAt || null,
         socialInsuranceNumber: form.socialInsuranceNumber || null,
         citizenIdNumber: form.citizenIdNumber || null,
+        salary: form.salary ? Number(form.salary) : null,
         isActive: form.isActive,
       } satisfies Record<string, unknown>;
 
@@ -414,6 +420,14 @@ export default function EmployeeEditPage() {
               <span className="font-semibold">{employee.departmentName ?? "—"}</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-slate-500">Lương</span>
+              <span className="font-semibold">
+                {employee.salary !== null && employee.salary !== undefined
+                  ? `${new Intl.NumberFormat("vi-VN").format(employee.salary)} VND`
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-slate-500">Mã vạch</span>
               <span className="font-semibold">{employee.code}</span>
             </div>
@@ -452,6 +466,17 @@ export default function EmployeeEditPage() {
                   className="rounded-none"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-600">Lương (VND)</label>
+              <Input
+                type="number"
+                min={0}
+                value={form.salary}
+                onChange={(e) => setForm((prev) => ({ ...prev, salary: e.target.value }))}
+                className="rounded-none"
+              />
             </div>
 
               <div>

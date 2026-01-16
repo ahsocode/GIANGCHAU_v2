@@ -26,6 +26,7 @@ type EmployeeDetail = {
   createdAt: Date;
   updatedAt: Date;
   isActive: boolean;
+  salary: number | null;
 };
 
 function formatDate(value: Date | string | null | undefined) {
@@ -91,6 +92,7 @@ export default async function EmployeeDetailPage({
     createdAt: emp.createdAt,
     updatedAt: emp.updatedAt,
     isActive: emp.isActive,
+    salary: emp.salary ?? null,
   };
 
   const typeLabel = detail.employmentType === "TV" ? "Thời vụ" : "Chính thức";
@@ -186,6 +188,14 @@ export default async function EmployeeDetailPage({
             <div>
               <dt className="text-slate-500">Giới tính</dt>
               <dd className="font-semibold text-slate-900">{genderLabel}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Lương</dt>
+              <dd className="font-semibold text-slate-900">
+                {detail.salary !== null
+                  ? `${new Intl.NumberFormat("vi-VN").format(detail.salary)} VND`
+                  : "—"}
+              </dd>
             </div>
             <div>
               <dt className="text-slate-500">CCCD/CMND</dt>

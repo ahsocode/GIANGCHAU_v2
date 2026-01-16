@@ -186,6 +186,7 @@ export async function POST(request: Request) {
           positionId: row.positionId,
           phone: row.phone,
           personalEmail: row.email,
+          salary: row.salary ?? null,
           dob: row.dob,
           address: row.address,
           socialInsuranceNumber: row.socialInsuranceNumber,

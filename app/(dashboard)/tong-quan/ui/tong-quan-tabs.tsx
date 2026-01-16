@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { href: "/tong-quan/nhan-su", label: "Nhân sự" },
   { href: "/tong-quan/cham-cong", label: "Chấm công" },
+  { href: "/tong-quan/ca-lam", label: "Ca làm" },
 ];
 
 export default function TongQuanTabs() {

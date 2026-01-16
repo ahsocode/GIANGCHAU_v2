@@ -64,6 +64,7 @@ export async function GET(request: Request) {
       id: e.id,
       code: e.code,
       fullName: e.fullName,
+      salary: (e as { salary?: number | null }).salary ?? null,
       employmentType: ((e as unknown as { employmentType?: EmploymentType }).employmentType ?? "CT") as EmploymentType,
       departmentId: e.departmentId,
       departmentName: e.department?.name ?? null,
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
     departmentId?: string | null;
     positionId?: string | null;
     employmentType?: EmploymentType | string;
+    salary?: number | null;
   };
 
   const fullName = body.fullName?.trim();
@@ -105,6 +107,7 @@ export async function POST(request: Request) {
       fullName,
       departmentId: body.departmentId || null,
       positionId: body.positionId || null,
+      salary: typeof body.salary === "number" ? Math.max(0, Math.round(body.salary)) : null,
     },
   });
 

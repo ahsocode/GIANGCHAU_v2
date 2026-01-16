@@ -207,6 +207,7 @@ model Employee {
   avatarUrl String?
   socialInsuranceNumber String? @unique
   citizenIdNumber       String? @unique
+  salary    Int?
 
   isActive   Boolean   @default(true)
   joinedAt   DateTime?
@@ -250,6 +251,7 @@ model WorkShift {
 
   lateGraceMinutes  Int @default(0)
   earlyGraceMinutes Int @default(0)
+  overtimeThresholdMinutes Int @default(0)
 
   status WorkShiftStatus @default(ACTIVE)
 

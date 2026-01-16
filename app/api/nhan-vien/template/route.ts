@@ -10,6 +10,7 @@ const TEMPLATE_HEADERS = [
   "Mã chức vụ",
   "Số điện thoại",
   "Email",
+  "Lương",
   "Ngày sinh",
   "Địa chỉ",
   "Mã BHXH",
@@ -50,6 +51,7 @@ export async function GET() {
     samplePositionCode,
     "0900000000",
     "nguyenvana@example.com",
+    "12000000",
     "1990-01-01",
     "Hà Nội",
     "SI123456789",
@@ -69,7 +71,8 @@ export async function GET() {
     ["3. Loại nhân viên phải khớp sheet \"Loại nhân viên\" (CT hoặc TV)."],
     ["4. Giới tính chỉ nhận: Nam, Nữ."],
     ["5. Ngày tháng theo định dạng giống mẫu (YYYY-MM-DD)."],
-    ["6. Các trường unique: Mã BHXH, CCCD/CMND, Số điện thoại, Email (trùng sẽ báo lỗi)."],
+    ["6. Lương nhập số VND, không âm (vd: 12000000)."],
+    ["7. Các trường unique: Mã BHXH, CCCD/CMND, Số điện thoại, Email (trùng sẽ báo lỗi)."],
   ];
   const guideSheet = XLSX.utils.aoa_to_sheet(guideRows);
   applyHeaderStyle(guideSheet, 1);

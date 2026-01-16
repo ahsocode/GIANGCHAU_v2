@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       positionCode: getValue("Mã chức vụ"),
       phone: getValue("Số điện thoại"),
       email: getValue("Email"),
+      salary: getValue("Lương"),
       dob: formatDate(dob),
       address: getValue("Địa chỉ"),
       socialInsuranceNumber: getValue("Mã BHXH"),

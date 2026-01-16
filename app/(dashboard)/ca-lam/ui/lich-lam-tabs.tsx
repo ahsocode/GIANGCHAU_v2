@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { href: "/lich-lam/ca-lam", label: "Danh sách ca làm" },
-  { href: "/lich-lam/phan-ca", label: "Phân ca" },
+  { href: "/ca-lam/danh-sach", label: "Danh sách ca làm" },
+  { href: "/ca-lam/phan-ca", label: "Phân ca" },
 ];
 
 export default function LichLamTabs() {

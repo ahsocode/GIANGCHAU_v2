@@ -9,6 +9,7 @@ export type ImportRowInput = {
   positionCode: string;
   phone: string;
   email: string;
+  salary: string;
   dob: string;
   address: string;
   socialInsuranceNumber: string;
@@ -25,6 +26,7 @@ export type ParsedRow = {
   positionId: string;
   phone: string;
   email: string;
+  salary: number | null;
   dob: Date | null;
   address: string | null;
   socialInsuranceNumber: string | null;
@@ -46,6 +48,7 @@ export const TEMPLATE_HEADERS = [
   "Mã chức vụ",
   "Số điện thoại",
   "Email",
+  "Lương",
   "Ngày sinh",
   "Địa chỉ",
   "Mã BHXH",
@@ -71,6 +74,7 @@ export const HEADER_ALIASES = new Map<string, string>([
   ["Mã chức vụ", "Mã chức vụ"],
   ["Số điện thoại", "Số điện thoại"],
   ["Email", "Email"],
+  ["Lương", "Lương"],
   ["Ngày sinh", "Ngày sinh"],
   ["Địa chỉ", "Địa chỉ"],
   ["Mã BHXH", "Mã BHXH"],
@@ -143,12 +147,21 @@ export function sanitizeInputRows(rows: ImportRowInput[]) {
     positionCode: row.positionCode.trim(),
     phone: row.phone.trim(),
     email: row.email.trim().toLowerCase(),
+    salary: row.salary.trim(),
     dob: row.dob.trim(),
     address: row.address.trim(),
     socialInsuranceNumber: row.socialInsuranceNumber.trim(),
     citizenIdNumber: row.citizenIdNumber.trim(),
     joinedAt: row.joinedAt.trim(),
   }));
+}
+
+function parseSalary(value: string) {
+  if (!value) return null;
+  const normalized = value.replace(/,/g, "").replace(/\s+/g, "");
+  const parsed = Number(normalized);
+  if (Number.isNaN(parsed) || parsed < 0) return null;
+  return Math.round(parsed);
 }
 
 export async function validateRows(params: {
@@ -197,6 +210,11 @@ export async function validateRows(params: {
     else if (emailSet.has(email)) rowErrors.push("Email trùng trong danh sách");
     else emailSet.add(email);
 
+    const salaryValue = parseSalary(row.salary.trim());
+    if (row.salary.trim() && salaryValue === null) {
+      rowErrors.push("Lương không hợp lệ");
+    }
+
     const dob = parseDateString(row.dob.trim());
     if (row.dob.trim() && !dob) rowErrors.push("Ngày sinh không hợp lệ");
 
@@ -230,6 +248,7 @@ export async function validateRows(params: {
       positionId: position!.id,
       phone,
       email,
+      salary: salaryValue,
       dob,
       address: address || null,
       socialInsuranceNumber: socialInsuranceNumber || null,
