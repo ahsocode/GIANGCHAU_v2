@@ -46,6 +46,7 @@ export default async function ChinhSuaHoSoPage() {
         phone={emp?.phone ?? ""}
         socialInsuranceNumber={emp?.socialInsuranceNumber ?? ""}
         citizenIdNumber={emp?.citizenIdNumber ?? ""}
+        salary={emp?.salary ?? null}
       />
     </div>
   );
@@ -58,6 +59,7 @@ function PersonalEditForm({
   phone,
   socialInsuranceNumber,
   citizenIdNumber,
+  salary,
 }: {
   personalEmail: string;
   dob: string;
@@ -65,6 +67,7 @@ function PersonalEditForm({
   phone: string;
   socialInsuranceNumber: string;
   citizenIdNumber: string;
+  salary: number | null;
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
@@ -72,6 +75,12 @@ function PersonalEditForm({
         Bạn có thể cập nhật Email cá nhân, Ngày sinh, Địa chỉ. Các mục SĐT / CCCD / BHXH cần gửi yêu cầu hỗ trợ để
         thay đổi.
       </p>
+      <div className="text-sm text-slate-700">
+        Lương:{" "}
+        <span className="font-semibold text-slate-900">
+          {salary !== null ? `${new Intl.NumberFormat("vi-VN").format(salary)} VND` : "—"}
+        </span>
+      </div>
       <PersonalEditClient
         personalEmail={personalEmail}
         dob={dob}

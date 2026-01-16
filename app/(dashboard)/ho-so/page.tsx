@@ -82,6 +82,14 @@ export default async function HoSoPage() {
                 <span className="font-semibold">{emp.code}</span>
               </div>
             )}
+            {emp?.salary !== undefined && emp?.salary !== null && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Lương</span>
+                <span className="font-semibold">
+                  {new Intl.NumberFormat("vi-VN").format(emp.salary)} VND
+                </span>
+              </div>
+            )}
             {emp && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Loại</span>

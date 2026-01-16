@@ -33,6 +33,7 @@ type PreviewRow = {
   positionCode: string;
   phone: string;
   email: string;
+  salary: string;
   dob: string;
   address: string;
   socialInsuranceNumber: string;
@@ -494,6 +495,7 @@ export default function UploadClient() {
                     Email<span className="ml-1 text-red-500 cursor-pointer" title="Trường bắt buộc">*</span>
                     <span className="ml-1 text-amber-500 cursor-pointer" title="Email không được trùng.">!</span>
                   </TableHead>
+                  <TableHead>Lương</TableHead>
                   <TableHead>Ngày sinh</TableHead>
                   <TableHead>Địa chỉ</TableHead>
                   <TableHead>
@@ -605,6 +607,14 @@ export default function UploadClient() {
                         value={row.email}
                         onChange={(e) => updateRow(row.rowNumber, "email", e.target.value)}
                         className="w-48 border border-slate-300 px-2 py-1 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <input
+                        value={row.salary}
+                        onChange={(e) => updateRow(row.rowNumber, "salary", e.target.value)}
+                        className="w-28 border border-slate-300 px-2 py-1 text-sm"
+                        placeholder="VND"
                       />
                     </TableCell>
                     <TableCell>

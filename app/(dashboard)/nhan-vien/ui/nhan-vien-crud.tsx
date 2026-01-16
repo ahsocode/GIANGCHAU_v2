@@ -20,6 +20,7 @@ type Item = {
   positionName: string | null;
   positionCode: string | null;
   accountEmail: string | null;
+  salary: number | null;
   isActive: boolean;
   createdAt: string;
   avatarUrl?: string | null;
@@ -37,6 +38,7 @@ type ApiItem = {
   positionName: string | null;
   positionCode: string | null;
   accountEmail: string | null;
+  salary: number | null;
   isActive: boolean;
   createdAt: string;
   avatarUrl?: string | null;
@@ -115,6 +117,7 @@ export function NhanVienCrud() {
           positionName: d.positionName,
           positionCode: d.positionCode,
           accountEmail: d.accountEmail,
+          salary: d.salary ?? null,
           isActive: d.isActive,
           createdAt: d.createdAt,
           avatarUrl: d.avatarUrl,
@@ -291,6 +294,7 @@ export function NhanVienCrud() {
               <TableHead className="min-w-30 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Bộ phận</TableHead>
               <TableHead className="min-w-30 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Chức vụ</TableHead>
               <TableHead className="w-24 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Loại</TableHead>
+              <TableHead className="min-w-28 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Lương</TableHead>
               <TableHead className="min-w-45 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Tài khoản</TableHead>
               <TableHead className="w-48 text-center bg-slate-100 whitespace-nowrap sticky right-0 z-10 hidden sm:table-cell">
                 Thao tác
@@ -301,13 +305,13 @@ export function NhanVienCrud() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
                   Đang tải...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
                   Không có dữ liệu
                 </TableCell>
               </TableRow>
@@ -349,6 +353,9 @@ export function NhanVienCrud() {
                     ) : (
                       <span className="text-xs sm:text-sm text-emerald-600 font-medium">Chính thức</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-center text-sm hidden md:table-cell">
+                    {d.salary !== null ? `${new Intl.NumberFormat("vi-VN").format(d.salary)} VND` : "—"}
                   </TableCell>
                   <TableCell className="text-center text-sm hidden md:table-cell">
                     {d.accountEmail ? (

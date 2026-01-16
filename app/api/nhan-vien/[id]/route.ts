@@ -37,6 +37,7 @@ export async function GET(
     address: emp.address,
     socialInsuranceNumber: emp.socialInsuranceNumber,
     citizenIdNumber: emp.citizenIdNumber,
+      salary: emp.salary ?? null,
       avatarUrl: emp.avatarUrl,
       employmentType: emp.employmentType as EmploymentType,
       departmentId: emp.departmentId,
@@ -79,6 +80,7 @@ export async function PATCH(
     joinedAt?: string | null;
     resignedAt?: string | null;
     avatarUrl?: string | null;
+    salary?: number | null;
   };
 
   const existing = await prisma.employee.findUnique({
@@ -172,6 +174,12 @@ export async function PATCH(
       personalEmail: body.personalEmail ?? existing.personalEmail ?? null,
       socialInsuranceNumber: body.socialInsuranceNumber ?? existing.socialInsuranceNumber ?? null,
       citizenIdNumber: body.citizenIdNumber ?? existing.citizenIdNumber ?? null,
+      salary:
+        body.salary === undefined
+          ? existing.salary ?? null
+          : typeof body.salary === "number"
+            ? Math.max(0, Math.round(body.salary))
+            : null,
       joinedAt,
       resignedAt,
       avatarUrl: body.avatarUrl ?? existing.avatarUrl ?? null,
@@ -258,6 +266,7 @@ export async function PATCH(
       isActive: updated.isActive,
       socialInsuranceNumber: updated.socialInsuranceNumber,
       citizenIdNumber: updated.citizenIdNumber,
+      salary: updated.salary ?? null,
       createdAt: updated.createdAt,
     },
   });

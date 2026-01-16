@@ -1,5 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { Building2, BriefcaseBusiness, LayoutDashboard, Users, UserRound } from "lucide-react";
+import {
+  Building2,
+  BriefcaseBusiness,
+  CalendarRange,
+  LayoutDashboard,
+  Users,
+  UserRound,
+} from "lucide-react";
 
 export type RoleKey = "ADMIN" | "DIRECTOR" | "STAFF" | "EMPLOYEE";
 
@@ -12,6 +19,7 @@ export type MenuItem = {
 
 const base: MenuItem[] = [
   { key: "tong-quan", label: "Tổng quan", href: "/tong-quan", icon: LayoutDashboard },
+  { key: "ca-lam", label: "Ca làm", href: "/ca-lam", icon: CalendarRange },
 ];
 
 const nhanSu: MenuItem[] = [
