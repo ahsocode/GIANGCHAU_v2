@@ -130,9 +130,9 @@ export default function TongQuanNhanSuPage() {
 
         <div className="rounded-none border border-slate-200 bg-white p-4 space-y-3">
           <div className="text-sm text-slate-500">Nhân viên mới 6 tháng gần nhất</div>
-          <div className="flex items-end gap-3">
+          <div className="flex items-end gap-3 overflow-x-auto pb-1">
             {(data?.newEmployeesByMonth ?? []).map((bucket) => (
-              <div key={bucket.key} className="flex flex-1 flex-col items-center gap-2">
+              <div key={bucket.key} className="flex min-w-[44px] flex-1 flex-col items-center gap-2">
                 <div
                   className="w-full rounded-none bg-blue-500/80"
                   style={{ height: `${Math.max(8, (bucket.value / maxBucket) * 120)}px` }}
@@ -160,7 +160,7 @@ export default function TongQuanNhanSuPage() {
         <div className="rounded-none border border-slate-200 bg-white p-4 space-y-3">
           <div className="text-sm text-slate-500">Nhân viên đang làm theo bộ phận</div>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-            <div className="relative h-[27rem] w-[27rem] sm:h-[30rem] sm:w-[30rem]">
+            <div className="relative mx-auto w-full max-w-[22rem] sm:max-w-[28rem] lg:mx-0 lg:max-w-[30rem] aspect-square">
               <svg
                 viewBox="0 0 200 200"
                 className="h-full w-full"

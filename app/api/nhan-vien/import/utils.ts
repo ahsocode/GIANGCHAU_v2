@@ -48,7 +48,7 @@ export const TEMPLATE_HEADERS = [
   "Mã chức vụ",
   "Số điện thoại",
   "Email",
-  "Lương",
+  "Lương cơ bản",
   "Ngày sinh",
   "Địa chỉ",
   "Mã BHXH",
@@ -74,7 +74,8 @@ export const HEADER_ALIASES = new Map<string, string>([
   ["Mã chức vụ", "Mã chức vụ"],
   ["Số điện thoại", "Số điện thoại"],
   ["Email", "Email"],
-  ["Lương", "Lương"],
+  ["Lương cơ bản", "Lương cơ bản"],
+  ["Lương", "Lương cơ bản"],
   ["Ngày sinh", "Ngày sinh"],
   ["Địa chỉ", "Địa chỉ"],
   ["Mã BHXH", "Mã BHXH"],
@@ -212,7 +213,7 @@ export async function validateRows(params: {
 
     const salaryValue = parseSalary(row.salary.trim());
     if (row.salary.trim() && salaryValue === null) {
-      rowErrors.push("Lương không hợp lệ");
+      rowErrors.push("Lương cơ bản không hợp lệ");
     }
 
     const dob = parseDateString(row.dob.trim());

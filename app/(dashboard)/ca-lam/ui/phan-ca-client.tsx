@@ -22,6 +22,14 @@ type ShiftOption = {
   status: "ACTIVE" | "ARCHIVED";
 };
 
+type HolidayItem = {
+  date: string;
+  name: string;
+  color: string;
+  payPolicy: "PAID" | "UNPAID" | "LEAVE";
+  scope: "ALL" | "DEPARTMENT" | "POSITION" | "EMPLOYEE";
+};
+
 const weekdays = [
   { key: "mon", label: "T2" },
   { key: "tue", label: "T3" },
@@ -90,6 +98,22 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function toShortLabel(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[đĐ]/g, "d")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .trim();
+  if (!normalized) return "";
+  return normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+}
+
 export function PhanCaClient() {
   const [employeeQuery, setEmployeeQuery] = useState("");
   const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
@@ -105,9 +129,12 @@ export function PhanCaClient() {
   const [rangeStart, setRangeStart] = useState<Date | null>(null);
   const [rangeEnd, setRangeEnd] = useState<Date | null>(null);
   const [selectMode, setSelectMode] = useState<"range" | "single">("range");
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [scheduleMap, setScheduleMap] = useState<Record<string, string>>({});
+  const [holidayMap, setHolidayMap] = useState<Record<string, HolidayItem[]>>({});
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [holidayLoading, setHolidayLoading] = useState(false);
   const [selectedWeekdays, setSelectedWeekdays] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [overwriteExisting, setOverwriteExisting] = useState(true);
@@ -176,10 +203,12 @@ export function PhanCaClient() {
     [shiftOptions, selectedShiftId]
   );
 
-  useEffect(() => {
-    if (rangeStart) setDateFrom(formatDateOnly(rangeStart));
-    if (rangeEnd) setDateTo(formatDateOnly(rangeEnd));
-  }, [rangeStart, rangeEnd]);
+useEffect(() => {
+  if (selectMode === "range") {
+    setDateFrom(rangeStart ? formatDateOnly(rangeStart) : "");
+    setDateTo(rangeEnd ? formatDateOnly(rangeEnd) : "");
+  }
+}, [rangeStart, rangeEnd, selectMode]);
 
   const refreshScheduleMap = useCallback(async (employeeId: string) => {
     const monthStart = startOfMonth(calendarMonth);
@@ -201,46 +230,104 @@ export function PhanCaClient() {
     setScheduleMap(map);
   }, [calendarMonth]);
 
+  const refreshHolidayMap = useCallback(
+    async (employeeId?: string | null) => {
+      const monthStart = startOfMonth(calendarMonth);
+      const rangeStartDate = new Date(monthStart);
+      const rangeEndDate = addMonths(monthStart, 2);
+      rangeEndDate.setDate(0);
+      const query = new URLSearchParams({
+        from: formatDateOnly(rangeStartDate),
+        to: formatDateOnly(rangeEndDate),
+      });
+      if (employeeId) query.set("employeeId", employeeId);
+      const res = await fetch(`/api/ngay-nghi/lich?${query.toString()}`);
+      if (!res.ok) throw new Error("Không tải được lịch ngày nghỉ.");
+      const data = (await res.json()) as { items?: HolidayItem[] };
+      const map: Record<string, HolidayItem[]> = {};
+      (data.items ?? []).forEach((item) => {
+        if (!item.date) return;
+        if (!map[item.date]) map[item.date] = [];
+        map[item.date].push(item);
+      });
+      setHolidayMap(map);
+    },
+    [calendarMonth]
+  );
+
   useEffect(() => {
     const employeeId = selectedEmployee?.id;
-    if (!employeeId) {
-      setScheduleMap({});
-      return;
-    }
     let active = true;
     setScheduleLoading(true);
-    refreshScheduleMap(employeeId)
+    setHolidayLoading(true);
+    const schedulePromise = employeeId
+      ? refreshScheduleMap(employeeId)
+      : Promise.resolve(setScheduleMap({}));
+    const holidayPromise = refreshHolidayMap(employeeId);
+    Promise.all([schedulePromise, holidayPromise])
       .catch((error: unknown) => {
         console.error(error);
         toast.error("Không tải được lịch phân ca.");
       })
       .finally(() => {
-        if (active) setScheduleLoading(false);
+        if (!active) return;
+        setScheduleLoading(false);
+        setHolidayLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [calendarMonth, refreshScheduleMap, selectedEmployee?.id]);
+  }, [calendarMonth, refreshHolidayMap, refreshScheduleMap, selectedEmployee?.id]);
 
-  function handleDateSelect(day: Date) {
-    if (selectMode === "single") {
-      setRangeStart(new Date(day));
-      setRangeEnd(new Date(day));
-      return;
-    }
-    if (!rangeStart || (rangeStart && rangeEnd)) {
-      setRangeStart(new Date(day));
+function handleDateSelect(day: Date) {
+  const dayKey = formatDateOnly(day);
+  if (selectMode === "single") {
+    setSelectedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(dayKey)) next.delete(dayKey);
+      else next.add(dayKey);
+      return next;
+    });
+    return;
+  }
+
+  const startKey = rangeStart ? formatDateOnly(rangeStart) : null;
+  const endKey = rangeEnd ? formatDateOnly(rangeEnd) : null;
+
+  if (!rangeStart && !rangeEnd) {
+    setRangeStart(new Date(day));
+    setRangeEnd(null);
+    return;
+  }
+
+  if (rangeStart && !rangeEnd) {
+    if (startKey === dayKey) {
+      setRangeStart(null);
       setRangeEnd(null);
       return;
     }
-    if (rangeStart && !rangeEnd) {
-      if (day < rangeStart) {
-        setRangeStart(new Date(day));
-        return;
-      }
-      setRangeEnd(new Date(day));
-    }
+    const a = rangeStart;
+    const b = day;
+    const [start, end] = a <= b ? [a, b] : [b, a];
+    setRangeStart(new Date(start));
+    setRangeEnd(new Date(end));
+    return;
   }
+
+  if (rangeStart && rangeEnd) {
+    if (startKey === dayKey) {
+      setRangeStart(new Date(rangeEnd));
+      setRangeEnd(null);
+      return;
+    }
+    if (endKey === dayKey) {
+      setRangeEnd(null);
+      return;
+    }
+    setRangeStart(new Date(day));
+    setRangeEnd(null);
+  }
+}
 
   function toggleWeekday(value: string) {
     setSelectedWeekdays((prev) =>
@@ -248,19 +335,24 @@ export function PhanCaClient() {
     );
   }
 
-  async function handleCreateSchedules() {
-    if (!selectedEmployee) {
-      toast.error("Vui lòng chọn nhân viên.");
-      return;
-    }
-    if (!selectedShiftId) {
-      toast.error("Vui lòng chọn ca làm.");
-      return;
-    }
+async function handleCreateSchedules() {
+  if (!selectedEmployee) {
+    toast.error("Vui lòng chọn nhân viên.");
+    return;
+  }
+  if (!selectedShiftId) {
+    toast.error("Vui lòng chọn ca làm.");
+    return;
+  }
+  if (selectMode === "range") {
     if (!dateFrom || !dateTo) {
       toast.error("Vui lòng chọn khoảng thời gian.");
       return;
     }
+  } else if (selectedDates.size === 0) {
+    toast.error("Vui lòng chọn ít nhất một ngày.");
+    return;
+  }
     const weekdayMap: Record<string, number> = {
       sun: 0,
       mon: 1,
@@ -273,19 +365,25 @@ export function PhanCaClient() {
     const weekdayNumbers = selectedWeekdays
       .map((key) => weekdayMap[key])
       .filter((value) => Number.isFinite(value)) as number[];
+    const weekdayNumbersToSend = selectMode === "range" ? weekdayNumbers : [];
 
-    try {
-      setSubmitting(true);
-      setScheduleLoading(true);
+  try {
+    setSubmitting(true);
+    setScheduleLoading(true);
+    let createdTotal = 0;
+    let updatedTotal = 0;
+    let skippedTotal = 0;
+
+    const postSchedule = async (startDateValue: string, endDateValue: string) => {
       const res = await fetch("/api/phan-ca", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           employeeId: selectedEmployee.id,
           workShiftId: selectedShiftId,
-          startDate: dateFrom,
-          endDate: dateTo,
-          weekdays: weekdayNumbers,
+          startDate: startDateValue,
+          endDate: endDateValue,
+            weekdays: weekdayNumbersToSend,
           overwrite: overwriteExisting,
         }),
       });
@@ -294,34 +392,32 @@ export function PhanCaClient() {
         throw new Error(data.message ?? "Không thể tạo lịch phân ca.");
       }
       const data = (await res.json()) as { created?: number; updated?: number; skipped?: number };
-      toast.success(
-        `Đã tạo ${data.created ?? 0} lịch, cập nhật ${data.updated ?? 0}, bỏ qua ${data.skipped ?? 0}.`
-      );
+      createdTotal += data.created ?? 0;
+      updatedTotal += data.updated ?? 0;
+      skippedTotal += data.skipped ?? 0;
+    };
 
-      const start = parseDateOnly(dateFrom);
-      const end = parseDateOnly(dateTo);
-      if (start && end && selectedShift) {
-        const selectedDays = getDatesBetween(start, end).filter((date) =>
-          weekdayNumbers.length > 0 ? weekdayNumbers.includes(date.getUTCDay()) : true
-        );
-        setScheduleMap((prev) => {
-          const next = { ...prev };
-          selectedDays.forEach((date) => {
-            const key = formatDateOnly(date);
-            next[key] = selectedShift.name;
-          });
-          return next;
-        });
+    if (selectMode === "range") {
+      await postSchedule(dateFrom, dateTo);
+    } else {
+      const dates = [...selectedDates].sort();
+      for (const dateValue of dates) {
+        await postSchedule(dateValue, dateValue);
       }
+    }
+
+    toast.success(`Đã tạo ${createdTotal} lịch, cập nhật ${updatedTotal}, bỏ qua ${skippedTotal}.`);
 
       setRangeStart(null);
       setRangeEnd(null);
       setDateFrom("");
       setDateTo("");
-      setSelectedWeekdays([]);
-      if (selectedEmployee?.id) {
-        await refreshScheduleMap(selectedEmployee.id);
-      }
+    setSelectedWeekdays([]);
+    setSelectedDates(new Set());
+    if (selectedEmployee?.id) {
+      await refreshScheduleMap(selectedEmployee.id);
+    }
+    await refreshHolidayMap(selectedEmployee?.id ?? null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Không thể tạo lịch phân ca.";
       toast.error(message);
@@ -336,10 +432,16 @@ export function PhanCaClient() {
       toast.error("Vui lòng chọn nhân viên.");
       return;
     }
-    if (!dateFrom || !dateTo) {
-      toast.error("Vui lòng chọn khoảng thời gian.");
+    if (selectMode === "range") {
+      if (!dateFrom || !dateTo) {
+        toast.error("Vui lòng chọn khoảng thời gian.");
+        return;
+      }
+    } else if (selectedDates.size === 0) {
+      toast.error("Vui lòng chọn ít nhất một ngày.");
       return;
     }
+
     const weekdayMap: Record<string, number> = {
       sun: 0,
       mon: 1,
@@ -352,30 +454,46 @@ export function PhanCaClient() {
     const weekdayNumbers = selectedWeekdays
       .map((key) => weekdayMap[key])
       .filter((value) => Number.isFinite(value)) as number[];
+    const weekdayNumbersToSend = selectMode === "range" ? weekdayNumbers : [];
 
     try {
       setSubmitting(true);
-      const res = await fetch("/api/phan-ca/remove", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeId: selectedEmployee.id,
-          workShiftId: selectedShiftId || undefined,
-          startDate: dateFrom,
-          endDate: dateTo,
-          weekdays: weekdayNumbers,
-        }),
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { message?: string };
-        throw new Error(data.message ?? "Không thể gỡ ca làm.");
-      }
-      const data = (await res.json()) as { deleted?: number };
-      toast.success(`Đã gỡ ${data.deleted ?? 0} lịch phân ca.`);
+      let deletedTotal = 0;
+      const postRemove = async (startDateValue: string, endDateValue: string) => {
+        const res = await fetch("/api/phan-ca/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employeeId: selectedEmployee.id,
+            workShiftId: selectedShiftId || undefined,
+            startDate: startDateValue,
+            endDate: endDateValue,
+            weekdays: weekdayNumbersToSend,
+          }),
+        });
+        if (!res.ok) {
+          const data = (await res.json()) as { message?: string };
+          throw new Error(data.message ?? "Không thể gỡ ca làm.");
+        }
+        const data = (await res.json()) as { deleted?: number };
+        deletedTotal += data.deleted ?? 0;
+      };
 
+      if (selectMode === "range") {
+        await postRemove(dateFrom, dateTo);
+      } else {
+        const dates = [...selectedDates].sort();
+        for (const dateValue of dates) {
+          await postRemove(dateValue, dateValue);
+        }
+      }
+
+      toast.success(`Đã gỡ ${deletedTotal} lịch phân ca.`);
+      setSelectedDates(new Set());
       if (selectedEmployee?.id) {
         await refreshScheduleMap(selectedEmployee.id);
       }
+      await refreshHolidayMap(selectedEmployee?.id ?? null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Không thể gỡ ca làm.";
       toast.error(message);
@@ -462,16 +580,37 @@ export function PhanCaClient() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Khoảng thời gian</label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Input value={dateFrom} readOnly placeholder="Ngày bắt đầu" className="rounded-none" />
-                <Input value={dateTo} readOnly placeholder="Ngày kết thúc" className="rounded-none" />
-              </div>
+              <label className="text-sm font-medium">
+                {selectMode === "range" ? "Khoảng thời gian" : "Ngày đã chọn"}
+              </label>
+              {selectMode === "range" ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input value={dateFrom} readOnly placeholder="Ngày bắt đầu" className="rounded-none" />
+                  <Input value={dateTo} readOnly placeholder="Ngày kết thúc" className="rounded-none" />
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700">
+                  {selectedDates.size === 0 ? (
+                    <span className="text-slate-500">Chưa chọn ngày nào</span>
+                  ) : (
+                    [...selectedDates]
+                      .sort()
+                      .map((date) => (
+                        <span
+                          key={date}
+                          className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                        >
+                          {new Intl.DateTimeFormat("vi-VN").format(new Date(`${date}T00:00:00`))}
+                        </span>
+                      ))
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-medium">Chọn ngày trên lịch</div>
                 <div className="text-xs text-slate-500">
@@ -481,16 +620,36 @@ export function PhanCaClient() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth(new Date())}
+                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-100 cursor-pointer"
+                  title="Về tháng hiện tại"
+                >
                   Hôm nay: {new Intl.DateTimeFormat("vi-VN").format(new Date())}
-                </span>
+                </button>
                 <Button
                   type="button"
                   variant="outline"
-                  className={`rounded-none ${selectMode === "single" ? "border-emerald-500 text-emerald-700" : ""}`}
+                  className="rounded-none w-full sm:w-auto"
+                  onClick={() => {
+                    setRangeStart(null);
+                    setRangeEnd(null);
+                    setSelectedDates(new Set());
+                  }}
+                >
+                  Reset chọn
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={`rounded-none w-full sm:w-auto ${
+                    selectMode === "single" ? "border-emerald-500 text-emerald-700" : ""
+                  }`}
                   onClick={() => {
                     setSelectMode("single");
-                    setRangeEnd(rangeStart);
+                    setRangeStart(null);
+                    setRangeEnd(null);
                   }}
                 >
                   Chọn từng ngày
@@ -498,15 +657,20 @@ export function PhanCaClient() {
                 <Button
                   type="button"
                   variant="outline"
-                  className={`rounded-none ${selectMode === "range" ? "border-emerald-500 text-emerald-700" : ""}`}
-                  onClick={() => setSelectMode("range")}
+                  className={`rounded-none w-full sm:w-auto ${
+                    selectMode === "range" ? "border-emerald-500 text-emerald-700" : ""
+                  }`}
+                  onClick={() => {
+                    setSelectMode("range");
+                    setSelectedDates(new Set());
+                  }}
                 >
                   Chọn theo khoảng
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-none"
+                  className="rounded-none w-full sm:w-auto"
                   onClick={() => setCalendarMonth(addMonths(calendarMonth, -1))}
                 >
                   Tháng trước
@@ -514,7 +678,7 @@ export function PhanCaClient() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-none"
+                  className="rounded-none w-full sm:w-auto"
                   onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
                 >
                   Tháng sau
@@ -531,36 +695,53 @@ export function PhanCaClient() {
                 return (
                   <div
                     key={`${month.getFullYear()}-${month.getMonth()}-${idx}`}
-                    className="rounded-lg border bg-white"
+                    className={`rounded-lg border bg-white ${idx === 1 ? "hidden lg:block" : ""}`}
                   >
                     <div className="border-b px-4 py-3 text-sm font-semibold text-slate-700 capitalize">
                       {title}
                     </div>
-                    <div className="grid grid-cols-7 gap-3 px-4 py-3 text-xs text-slate-500">
+                    <div className="grid grid-cols-7 gap-2 px-3 py-3 text-xs text-slate-500 sm:gap-3 sm:px-4">
                       {weekdayLabels.map((label) => (
                         <div key={label} className="text-center">
                           {label}
                         </div>
                       ))}
                     </div>
-                    <div className="grid grid-cols-7 gap-3 px-4 pb-4">
+                    <div className="grid grid-cols-7 gap-2 px-3 pb-4 sm:gap-3 sm:px-4">
                       {days.map((day) => {
                         const inMonth = day.getMonth() === month.getMonth();
                         const dayKey = formatDateOnly(day);
                         const isStart = startKey ? dayKey === startKey : false;
                         const isEnd = endKey ? dayKey === endKey : false;
                         const inRange =
-                          !!startKey && !!endKey && dayKey > startKey && dayKey < endKey;
+                          selectMode === "range" && !!startKey && !!endKey && dayKey > startKey && dayKey < endKey;
                         const hasShift = !!scheduleMap[dayKey];
                         const shiftName = scheduleMap[dayKey];
+                        const holidayItems = holidayMap[dayKey] ?? [];
+                        const holiday = holidayItems[0];
+                        const hasHoliday = holidayItems.length > 0;
+                        const hasConflict = hasHoliday && hasShift;
+                        const holidayLabel =
+                          holidayItems.length > 1
+                            ? `${holiday?.name} (+${holidayItems.length - 1})`
+                            : holiday?.name ?? "";
+                        const conflictLabelFull =
+                          holidayLabel && shiftName ? `${holidayLabel} / ${shiftName}` : shiftName ?? holidayLabel;
+                        const conflictLabelShort =
+                          holidayLabel && shiftName
+                            ? `${toShortLabel(holidayLabel)} / ${toShortLabel(shiftName)}`
+                            : toShortLabel(shiftName ?? holidayLabel ?? "");
                         const isToday = isSameDay(day, new Date());
                         const isSelected = isStart || isEnd;
+                        const isSelectedSingle =
+                          selectMode === "single" && selectedDates.has(dayKey);
+                        const isSelectedAny = isSelected || isSelectedSingle;
                         return (
                           <button
                             key={dayKey}
                             type="button"
                             onClick={() => handleDateSelect(day)}
-                            className={`relative flex h-14 items-center justify-center rounded-md border text-sm transition ${
+                            className={`relative flex h-12 flex-col items-center justify-start gap-0.5 rounded-md border pt-3 text-[11px] transition sm:h-14 sm:pt-4 sm:text-sm ${
                               inMonth
                                 ? "border-slate-200 bg-white text-slate-900 hover:border-emerald-300"
                                 : "border-transparent text-slate-300"
@@ -568,26 +749,44 @@ export function PhanCaClient() {
                               isToday && inMonth ? "!bg-blue-50 !border-blue-200" : ""
                             } ${inRange ? "!bg-emerald-100 !border-emerald-300 !text-emerald-700" : ""} ${
                               isStart || isEnd ? "!bg-emerald-500 !text-white !border-emerald-500" : ""
+                            } ${isSelectedSingle ? "!bg-emerald-500 !text-white !border-emerald-500" : ""} ${
+                              hasConflict && !isSelectedAny ? "!border-red-500 !bg-amber-100" : ""
                             }`}
                             title={
                               hasShift
                                 ? "Ngày này đã có ca làm"
-                                : inMonth
-                                  ? "Chọn ngày"
-                                  : ""
+                                : hasHoliday
+                                  ? "Ngày nghỉ"
+                                  : inMonth
+                                    ? "Chọn ngày"
+                                    : ""
                             }
                           >
-                            {hasShift && (
+                            {hasShift && !hasConflict && !isSelectedAny && (
                               <span className="absolute inset-0 rounded-md bg-amber-100 opacity-70" />
                             )}
+                            {hasHoliday && !hasConflict && !isSelectedAny && holiday && (
+                              <span
+                                className="absolute inset-0 rounded-md opacity-70"
+                                style={{
+                                  backgroundColor: `${holiday.color}1f`,
+                                  borderColor: `${holiday.color}80`,
+                                }}
+                              />
+                            )}
                             {isToday && inMonth && (
-                              <span className="absolute top-1 left-1 right-1 z-10 text-[10px] font-semibold text-blue-700">
-                                Hôm nay
-                              </span>
+                              <>
+                                <span className="absolute top-0.5 left-1 right-1 z-10 text-[9px] font-semibold text-blue-700 sm:top-1 sm:text-[10px] hidden sm:block">
+                                  Hôm nay
+                                </span>
+                                <span className="absolute top-1 right-1 z-10 rounded-full bg-blue-100 px-1.5 py-0.5 text-[8px] font-semibold text-blue-700 sm:hidden">
+                                  HN
+                                </span>
+                              </>
                             )}
                             <span
                               className={
-                                isSelected
+                                isSelectedAny
                                   ? "relative z-10 font-semibold text-white"
                                   : isToday && inMonth
                                     ? "relative z-10 font-semibold text-emerald-600"
@@ -596,8 +795,30 @@ export function PhanCaClient() {
                             >
                               {day.getDate()}
                             </span>
-                            {hasShift && shiftName && (
-                              <span className="absolute bottom-1 left-1 right-1 z-10 truncate text-[10px] font-medium text-amber-700">
+                            {hasConflict && conflictLabelFull && (
+                              <>
+                                <span className="relative z-10 px-0.5 text-center text-[8px] font-semibold leading-tight text-red-600 sm:hidden">
+                                  {conflictLabelShort}
+                                </span>
+                                <span className="relative z-10 px-0.5 text-center text-[9px] font-semibold leading-snug text-red-600 hidden sm:block">
+                                  {conflictLabelFull}
+                                </span>
+                              </>
+                            )}
+                            {hasHoliday && !hasConflict && holidayLabel && (
+                              <span
+                                className="relative z-10 truncate text-[9px] font-semibold sm:text-[10px]"
+                                style={{ color: isSelectedAny ? "#ffffff" : holiday?.color ?? "#F59E0B" }}
+                              >
+                                {holidayLabel}
+                              </span>
+                            )}
+                            {!hasConflict && hasShift && shiftName && (
+                              <span
+                                className={`relative z-10 truncate text-[9px] font-medium sm:text-[10px] ${
+                                  isSelectedAny ? "text-white" : "text-amber-700"
+                                }`}
+                              >
                                 {shiftName}
                               </span>
                             )}
@@ -616,10 +837,14 @@ export function PhanCaClient() {
                 Ngày đã có ca
               </div>
               <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded bg-amber-100 border border-amber-200" />
+                Ngày nghỉ
+              </div>
+              <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded bg-emerald-100 border border-emerald-200" />
                 Khoảng đang chọn
               </div>
-              {scheduleLoading && <div>Đang tải lịch...</div>}
+              {(scheduleLoading || holidayLoading) && <div>Đang tải lịch...</div>}
             </div>
           </div>
 
@@ -696,7 +921,14 @@ export function PhanCaClient() {
           <div>
             Thời gian:{" "}
             <span className="font-semibold text-slate-900">
-              {dateFrom || "—"} → {dateTo || "—"}
+              {selectMode === "range"
+                ? `${dateFrom || "—"} → ${dateTo || "—"}`
+                : selectedDates.size > 0
+                  ? [...selectedDates]
+                      .sort()
+                      .map((date) => new Intl.DateTimeFormat("vi-VN").format(new Date(`${date}T00:00:00`)))
+                      .join(", ")
+                  : "—"}
             </span>
           </div>
           <div>

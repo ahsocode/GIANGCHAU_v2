@@ -294,7 +294,9 @@ export function NhanVienCrud() {
               <TableHead className="min-w-30 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Bộ phận</TableHead>
               <TableHead className="min-w-30 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Chức vụ</TableHead>
               <TableHead className="w-24 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Loại</TableHead>
-              <TableHead className="min-w-28 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Lương</TableHead>
+              <TableHead className="min-w-28 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">
+                Lương cơ bản
+              </TableHead>
               <TableHead className="min-w-45 text-center bg-slate-100 whitespace-nowrap hidden md:table-cell">Tài khoản</TableHead>
               <TableHead className="w-48 text-center bg-slate-100 whitespace-nowrap sticky right-0 z-10 hidden sm:table-cell">
                 Thao tác
