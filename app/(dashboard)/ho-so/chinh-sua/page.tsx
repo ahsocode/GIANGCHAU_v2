@@ -76,7 +76,7 @@ function PersonalEditForm({
         thay đổi.
       </p>
       <div className="text-sm text-slate-700">
-        Lương:{" "}
+        Lương cơ bản:{" "}
         <span className="font-semibold text-slate-900">
           {salary !== null ? `${new Intl.NumberFormat("vi-VN").format(salary)} VND` : "—"}
         </span>

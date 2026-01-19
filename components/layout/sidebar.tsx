@@ -32,6 +32,7 @@ export function Sidebar({ role }: { role: RoleKey }) {
   const [openPersonal, setOpenPersonal] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isEmployee = role === "EMPLOYEE";
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
@@ -87,6 +88,7 @@ export function Sidebar({ role }: { role: RoleKey }) {
     { key: "tong-hop", label: "Tổng hợp", href: "/tong-hop", icon: BarChart2 },
     { key: "yeu-cau", label: "Yêu cầu", href: "/yeu-cau", icon: MessageSquare },
   ];
+  const primaryItems = isEmployee ? personalItems : mainItems;
 
   // Desktop sidebar
   const DesktopNav = (
@@ -118,7 +120,7 @@ export function Sidebar({ role }: { role: RoleKey }) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-2">
         <div className="space-y-1">
-          {mainItems.map((it) => {
+          {primaryItems.map((it) => {
             const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
             const Icon = it.icon;
             return (
@@ -215,79 +217,80 @@ export function Sidebar({ role }: { role: RoleKey }) {
             </div>
           )}
 
-          {/* Personal */}
-          <div className="mt-2">
-            {collapsed ? (
-              <div className="space-y-1">
-                {personalItems.map((it) => {
-                  const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
-                  const Icon = it.icon;
-                  return (
-                    <Link
-                      key={it.key}
-                      href={it.href}
-                      className={cn(
-                        "flex items-center justify-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors",
-                        active
-                          ? "bg-emerald-50 text-emerald-700 font-medium"
-                          : "text-slate-700 hover:bg-slate-100"
-                      )}
-                      title={it.label}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenPersonal((v) => !v);
-                    setOpenHr(false);
-                  }}
-                  className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
-                >
-                  <span className="inline-flex items-center gap-3 min-w-0">
-                    <UserCircle className="h-4 w-4 shrink-0" />
-                    <span className="truncate">Cá nhân</span>
-                  </span>
-                  <ChevronDown
-                    className={cn("h-4 w-4 transition-transform shrink-0", openPersonal && "rotate-180")}
-                  />
-                </button>
-                <div
-                  className={cn(
-                    "overflow-hidden transition-[max-height,opacity] duration-200",
-                    openPersonal ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-                  )}
-                >
-                  <div className="space-y-1 mt-1 ml-2">
-                    {personalItems.map((it) => {
-                      const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
-                      const Icon = it.icon;
-                      return (
-                        <Link
-                          key={it.key}
-                          href={it.href}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors",
-                            active
-                              ? "bg-emerald-50 text-emerald-700 font-medium"
-                              : "text-slate-700 hover:bg-slate-100"
-                          )}
-                        >
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{it.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
+          {!isEmployee && (
+            <div className="mt-2">
+              {collapsed ? (
+                <div className="space-y-1">
+                  {personalItems.map((it) => {
+                    const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
+                    const Icon = it.icon;
+                    return (
+                      <Link
+                        key={it.key}
+                        href={it.href}
+                        className={cn(
+                          "flex items-center justify-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors",
+                          active
+                            ? "bg-emerald-50 text-emerald-700 font-medium"
+                            : "text-slate-700 hover:bg-slate-100"
+                        )}
+                        title={it.label}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                      </Link>
+                    );
+                  })}
                 </div>
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenPersonal((v) => !v);
+                      setOpenHr(false);
+                    }}
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-3 min-w-0">
+                      <UserCircle className="h-4 w-4 shrink-0" />
+                      <span className="truncate">Cá nhân</span>
+                    </span>
+                    <ChevronDown
+                      className={cn("h-4 w-4 transition-transform shrink-0", openPersonal && "rotate-180")}
+                    />
+                  </button>
+                  <div
+                    className={cn(
+                      "overflow-hidden transition-[max-height,opacity] duration-200",
+                      openPersonal ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                    )}
+                  >
+                    <div className="space-y-1 mt-1 ml-2">
+                      {personalItems.map((it) => {
+                        const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
+                        const Icon = it.icon;
+                        return (
+                          <Link
+                            key={it.key}
+                            href={it.href}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors",
+                              active
+                                ? "bg-emerald-50 text-emerald-700 font-medium"
+                                : "text-slate-700 hover:bg-slate-100"
+                            )}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{it.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </nav>
 
@@ -356,7 +359,7 @@ export function Sidebar({ role }: { role: RoleKey }) {
           {/* Navigation - Scrollable */}
           <nav className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
             <div className="space-y-1">
-              {mainItems.map((it) => {
+              {primaryItems.map((it) => {
                 const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
                 const Icon = it.icon;
                 return (
@@ -427,54 +430,55 @@ export function Sidebar({ role }: { role: RoleKey }) {
                 </div>
               )}
 
-              {/* Personal mobile */}
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenPersonal((v) => !v);
-                    setOpenHr(false);
-                  }}
-                  className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
-                >
-                  <span className="inline-flex items-center gap-3 min-w-0">
-                    <UserCircle className="h-4 w-4 shrink-0" />
-                    <span className="truncate">Cá nhân</span>
-                  </span>
-                  <ChevronDown
-                    className={cn("h-4 w-4 transition-transform shrink-0", openPersonal && "rotate-180")}
-                  />
-                </button>
-                <div
-                  className={cn(
-                    "overflow-hidden transition-[max-height,opacity] duration-200",
-                    openPersonal ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-                  )}
-                >
-                  <div className="space-y-1 mt-1 ml-2">
-                    {personalItems.map((it) => {
-                      const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
-                      const Icon = it.icon;
-                      return (
-                        <Link
-                          key={it.key}
-                          href={it.href}
-                          onClick={() => setMobileOpen(false)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors",
-                            active
-                              ? "bg-emerald-50 text-emerald-700 font-medium"
-                              : "text-slate-700 hover:bg-slate-100"
-                          )}
-                        >
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{it.label}</span>
-                        </Link>
-                      );
-                    })}
+              {!isEmployee && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenPersonal((v) => !v);
+                      setOpenHr(false);
+                    }}
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium text-slate-700 rounded-md hover:bg-slate-100 transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-3 min-w-0">
+                      <UserCircle className="h-4 w-4 shrink-0" />
+                      <span className="truncate">Cá nhân</span>
+                    </span>
+                    <ChevronDown
+                      className={cn("h-4 w-4 transition-transform shrink-0", openPersonal && "rotate-180")}
+                    />
+                  </button>
+                  <div
+                    className={cn(
+                      "overflow-hidden transition-[max-height,opacity] duration-200",
+                      openPersonal ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                    )}
+                  >
+                    <div className="space-y-1 mt-1 ml-2">
+                      {personalItems.map((it) => {
+                        const active = pathname === it.href || pathname.startsWith(`${it.href}/`);
+                        const Icon = it.icon;
+                        return (
+                          <Link
+                            key={it.key}
+                            href={it.href}
+                            onClick={() => setMobileOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors",
+                              active
+                                ? "bg-emerald-50 text-emerald-700 font-medium"
+                                : "text-slate-700 hover:bg-slate-100"
+                            )}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{it.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </nav>
 

@@ -43,6 +43,19 @@ enum ScheduleStatus {
   LOCKED
 }
 
+enum HolidayScope {
+  ALL
+  DEPARTMENT
+  POSITION
+  EMPLOYEE
+}
+
+enum HolidayPayPolicy {
+  PAID
+  UNPAID
+  LEAVE
+}
+
 enum AttendanceSource {
   WEB
   MOBILE
@@ -179,6 +192,7 @@ model Department {
   manager   Employee? @relation("dept_manager", fields: [managerId], references: [id])
 
   employees Employee[]
+  holidays  Holiday[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -190,6 +204,7 @@ model Position {
   name String
 
   employees Employee[]
+  holidays  Holiday[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -231,6 +246,7 @@ model Employee {
   leaveRequests    LeaveRequest[]    @relation("leave_employee")
 
   managesDepartments Department[] @relation("dept_manager")
+  holidays          Holiday[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -259,6 +275,45 @@ model WorkShift {
   updatedAt DateTime @updatedAt
 
   schedules WorkSchedule[]
+}
+
+model HolidayType {
+  id        String @id @default(uuid())
+  name      String
+  color     String @default("#F59E0B")
+  payPolicy HolidayPayPolicy @default(PAID)
+
+  holidays Holiday[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Holiday {
+  id            String @id @default(uuid())
+  date          DateTime
+  scope         HolidayScope @default(ALL)
+
+  holidayTypeId String
+  holidayType   HolidayType @relation(fields: [holidayTypeId], references: [id])
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  positionId String?
+  position   Position? @relation(fields: [positionId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([scope])
+  @@index([departmentId])
+  @@index([positionId])
+  @@index([employeeId])
 }
 
 model PayrollPeriod {

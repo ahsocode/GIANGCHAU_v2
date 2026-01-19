@@ -26,6 +26,14 @@ type ShiftItem = {
   endTime: string;
 };
 
+type HolidayItem = {
+  date: string;
+  name: string;
+  color: string;
+  payPolicy: "PAID" | "UNPAID" | "LEAVE";
+  scope: "ALL" | "DEPARTMENT" | "POSITION" | "EMPLOYEE";
+};
+
 const weekdayLabels = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
 function formatDateOnly(date: Date) {
@@ -69,11 +77,29 @@ function formatMonthTitle(date: Date) {
   return `tháng ${date.getMonth() + 1} năm ${date.getFullYear()}`;
 }
 
+function toShortLabel(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[đĐ]/g, "d")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .trim();
+  if (!normalized) return "";
+  return normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+}
+
 export function LichLamClient() {
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [scheduleMap, setScheduleMap] = useState<Record<string, ScheduleItem>>({});
+  const [holidayMap, setHolidayMap] = useState<Record<string, HolidayItem[]>>({});
   const [shiftOptions, setShiftOptions] = useState<ShiftItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [holidayLoading, setHolidayLoading] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("");
 
@@ -82,6 +108,20 @@ export function LichLamClient() {
     const to = endOfMonth(calendarMonth);
     return { from: formatDateOnly(from), to: formatDateOnly(to) };
   }, [calendarMonth]);
+
+  const monthOptions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, idx) => ({
+        value: idx,
+        label: `Tháng ${idx + 1}`,
+      })),
+    []
+  );
+
+  const yearOptions = useMemo(() => {
+    const current = new Date().getFullYear();
+    return [current - 1, current, current + 1];
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -118,8 +158,31 @@ export function LichLamClient() {
         if (active) setLoading(false);
       }
     }
+
+    async function fetchHolidays() {
+      setHolidayLoading(true);
+      try {
+        const query = new URLSearchParams(monthRange);
+        const res = await fetch(`/api/ngay-nghi/lich?${query.toString()}`);
+        if (!res.ok) throw new Error("Không tải được lịch ngày nghỉ.");
+        const data = (await res.json()) as { items?: HolidayItem[] };
+        if (!active) return;
+        const map: Record<string, HolidayItem[]> = {};
+        (data.items ?? []).forEach((item) => {
+          if (!map[item.date]) map[item.date] = [];
+          map[item.date].push(item);
+        });
+        setHolidayMap(map);
+      } catch (error: unknown) {
+        console.error(error);
+        toast.error("Không tải được lịch ngày nghỉ.");
+      } finally {
+        if (active) setHolidayLoading(false);
+      }
+    }
     fetchShifts();
     fetchSchedules();
+    fetchHolidays();
     return () => {
       active = false;
     };
@@ -135,9 +198,44 @@ export function LichLamClient() {
           <p className="text-sm text-muted-foreground">Xem lịch ca làm theo tháng.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+          <button
+            type="button"
+            onClick={() => setCalendarMonth(new Date())}
+            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-100 cursor-pointer"
+            title="Về tháng hiện tại"
+          >
             Hôm nay: {new Intl.DateTimeFormat("vi-VN").format(new Date())}
-          </span>
+          </button>
+          <div className="flex items-center gap-2">
+            <select
+              value={calendarMonth.getMonth()}
+              onChange={(event) => {
+                const nextMonth = Number(event.target.value);
+                setCalendarMonth(new Date(calendarMonth.getFullYear(), nextMonth, 1));
+              }}
+              className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-xs"
+            >
+              {monthOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={calendarMonth.getFullYear()}
+              onChange={(event) => {
+                const nextYear = Number(event.target.value);
+                setCalendarMonth(new Date(nextYear, calendarMonth.getMonth(), 1));
+              }}
+              className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-xs"
+            >
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -192,6 +290,18 @@ export function LichLamClient() {
             const inMonth = day.getMonth() === calendarMonth.getMonth();
             const dayKey = formatDateOnly(day);
             const schedule = scheduleMap[dayKey];
+            const holidayItems = holidayMap[dayKey] ?? [];
+            const holiday = holidayItems[0];
+            const hasHoliday = holidayItems.length > 0;
+            const hasConflict = hasHoliday && !!schedule;
+            const holidayLabel =
+              holidayItems.length > 1 ? `${holiday?.name} (+${holidayItems.length - 1})` : holiday?.name ?? "";
+            const conflictLabelFull =
+              holidayLabel && schedule?.name ? `${holidayLabel} / ${schedule.name}` : schedule?.name ?? holidayLabel;
+            const conflictLabelShort =
+              holidayLabel && schedule?.name
+                ? `${toShortLabel(holidayLabel)} / ${toShortLabel(schedule.name)}`
+                : toShortLabel(schedule?.name ?? holidayLabel ?? "");
             const clickable = !!schedule;
             const isToday =
               day.getFullYear() === new Date().getFullYear() &&
@@ -214,16 +324,43 @@ export function LichLamClient() {
                     : "border-transparent text-slate-300"
                 } ${isToday && inMonth ? "!bg-blue-50 !border-blue-200" : ""} ${
                   clickable ? "cursor-pointer hover:border-amber-300" : "cursor-default"
-                }`}
+                } ${hasConflict && inMonth ? "!border-red-500 !bg-amber-100" : ""}`}
               >
+                {hasHoliday && !hasConflict && inMonth && (
+                  <span
+                    className="absolute inset-0 rounded-md opacity-70"
+                    style={{
+                      backgroundColor: `${holiday?.color ?? "#F59E0B"}1f`,
+                      borderColor: `${holiday?.color ?? "#F59E0B"}80`,
+                    }}
+                  />
+                )}
                 {isToday && inMonth && (
                   <span className="absolute top-1 left-1 right-1 text-[10px] font-semibold text-blue-700">
                     Hôm nay
                   </span>
                 )}
-                <span className="text-sm font-semibold">{day.getDate()}</span>
-                {schedule && (
-                  <span className="mt-1 truncate text-[10px] font-medium text-amber-800">
+                <span className="relative z-10 text-sm font-semibold">{day.getDate()}</span>
+                {hasConflict && conflictLabelFull && (
+                  <>
+                    <span className="relative z-10 mt-1 px-0.5 text-center text-[8px] font-semibold leading-tight text-red-600 sm:hidden">
+                      {conflictLabelShort}
+                    </span>
+                    <span className="relative z-10 mt-1 px-0.5 text-center text-[9px] font-semibold leading-snug text-red-600 hidden sm:block">
+                      {conflictLabelFull}
+                    </span>
+                  </>
+                )}
+                {hasHoliday && !hasConflict && holidayLabel && (
+                  <span
+                    className="relative z-10 mt-1 truncate text-[10px] font-semibold"
+                    style={{ color: holiday?.color ?? "#F59E0B" }}
+                  >
+                    {holidayLabel}
+                  </span>
+                )}
+                {!hasConflict && schedule && (
+                  <span className="relative z-10 mt-1 truncate text-[10px] font-medium text-amber-800">
                     {schedule.name} {schedule.startTime}-{schedule.endTime}
                   </span>
                 )}
@@ -238,7 +375,11 @@ export function LichLamClient() {
           <span className="h-3 w-3 rounded bg-amber-100 border border-amber-200" />
           Ngày có ca làm
         </div>
-        {loading && <div>Đang tải lịch...</div>}
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded bg-amber-100 border border-amber-200" />
+          Ngày nghỉ
+        </div>
+        {(loading || holidayLoading) && <div>Đang tải lịch...</div>}
       </div>
 
       <Dialog open={!!selectedSchedule} onOpenChange={(open) => (!open ? setSelectedSchedule(null) : null)}>

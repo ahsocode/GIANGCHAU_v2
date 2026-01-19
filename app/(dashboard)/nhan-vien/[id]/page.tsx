@@ -190,7 +190,7 @@ export default async function EmployeeDetailPage({
               <dd className="font-semibold text-slate-900">{genderLabel}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Lương</dt>
+              <dt className="text-slate-500">Lương cơ bản</dt>
               <dd className="font-semibold text-slate-900">
                 {detail.salary !== null
                   ? `${new Intl.NumberFormat("vi-VN").format(detail.salary)} VND`
