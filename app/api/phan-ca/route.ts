@@ -27,6 +27,26 @@ function getDatesInRange(start: Date, end: Date) {
   return days;
 }
 
+function toLocalDateFromUtc(value: Date) {
+  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+}
+
+function combineDateTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const next = toLocalDateFromUtc(date);
+  next.setHours(hours || 0, minutes || 0, 0, 0);
+  return next;
+}
+
+function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
+  const start = combineDateTime(date, startTime);
+  let end = combineDateTime(date, endTime);
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return { start, end };
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as RangePayload;
   const employeeId = body.employeeId?.trim();
@@ -64,6 +84,26 @@ export async function POST(request: Request) {
   const days = getDatesInRange(start, end);
   const filteredDays =
     weekdays.length > 0 ? days.filter((d) => weekdays.includes(d.getUTCDay())) : days;
+
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+  if (filteredDays.some((day) => day.getTime() < todayUtc.getTime())) {
+    return NextResponse.json(
+      { message: "Không thể phân ca cho ngày trước hôm nay." },
+      { status: 400 }
+    );
+  }
+
+  if (filteredDays.some((day) => day.getTime() === todayUtc.getTime())) {
+    const window = resolveShiftWindow(todayUtc, shift.startTime, shift.endTime);
+    if (now.getTime() > window.end.getTime()) {
+      return NextResponse.json(
+        { message: "Đã quá thời gian check-in cho ca hôm nay." },
+        { status: 400 }
+      );
+    }
+  }
 
   let created = 0;
   let updated = 0;
@@ -105,6 +145,22 @@ export async function POST(request: Request) {
           plannedEarlyGraceMinutes: shift.earlyGraceMinutes,
         },
         select: { id: true, createdAt: true, updatedAt: true },
+      });
+
+      await tx.attendanceRecord.upsert({
+        where: { employeeId_date: { employeeId, date: day } },
+        create: {
+          employeeId,
+          date: day,
+          scheduleId: result.id,
+          status: "INCOMPLETE",
+          checkInStatus: "PENDING",
+          checkOutStatus: "PENDING",
+          source: "MANUAL",
+        },
+        update: {
+          scheduleId: result.id,
+        },
       });
 
       if (result.createdAt.getTime() === result.updatedAt.getTime()) created += 1;
