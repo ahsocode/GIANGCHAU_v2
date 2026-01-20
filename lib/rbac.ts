@@ -3,6 +3,7 @@ import {
   Building2,
   BriefcaseBusiness,
   CalendarRange,
+  CalendarDays,
   LayoutDashboard,
   Users,
   UserRound,
@@ -20,6 +21,7 @@ export type MenuItem = {
 const base: MenuItem[] = [
   { key: "tong-quan", label: "Tổng quan", href: "/tong-quan", icon: LayoutDashboard },
   { key: "ca-lam", label: "Ca làm", href: "/ca-lam", icon: CalendarRange },
+  { key: "ngay-nghi", label: "Ngày nghỉ", href: "/ngay-nghi/loai", icon: CalendarDays },
 ];
 
 const nhanSu: MenuItem[] = [

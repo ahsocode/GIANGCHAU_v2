@@ -495,7 +495,7 @@ export default function UploadClient() {
                     Email<span className="ml-1 text-red-500 cursor-pointer" title="Trường bắt buộc">*</span>
                     <span className="ml-1 text-amber-500 cursor-pointer" title="Email không được trùng.">!</span>
                   </TableHead>
-                  <TableHead>Lương</TableHead>
+                  <TableHead>Lương cơ bản</TableHead>
                   <TableHead>Ngày sinh</TableHead>
                   <TableHead>Địa chỉ</TableHead>
                   <TableHead>

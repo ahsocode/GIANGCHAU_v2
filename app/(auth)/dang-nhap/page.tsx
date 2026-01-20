@@ -19,8 +19,6 @@ export default function DangNhapPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const DEV_EMAIL = "admin@giangchau.local";
-  const DEV_PASSWORD = "123456";
 
   const canSubmit = useMemo(() => {
     return email.trim().length > 0 && password.trim().length > 0 && !loading;
@@ -49,8 +47,22 @@ export default function DangNhapPage() {
         return;
       }
 
+      let redirectUrl = res.url || "/tong-quan";
+      try {
+        const profileRes = await fetch("/api/ho-so");
+        if (profileRes.ok) {
+          const profile = (await profileRes.json()) as { item?: { account?: { roleKey?: string } } };
+          const roleKey = profile.item?.account?.roleKey;
+          if (roleKey === "EMPLOYEE") {
+            redirectUrl = "/lich-lam";
+          }
+        }
+      } catch (error) {
+        console.error(error);
+      }
+
       toast.success("Đăng nhập thành công");
-      router.push(res.url || "/tong-quan");
+      router.push(redirectUrl);
     } catch (error) {
       console.error(error);
       toast.error("Không thể kết nối máy chủ. Thử lại sau.");
@@ -63,11 +75,6 @@ export default function DangNhapPage() {
     toast("Đăng nhập Google sẽ làm sau");
   }
 
-  function fillDemo() {
-    setEmail(DEV_EMAIL);
-    setPassword(DEV_PASSWORD);
-    toast.message("Đã điền tài khoản demo");
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -138,32 +145,6 @@ export default function DangNhapPage() {
                   )}
                 </Button>
               </form>
-
-              <div className="mt-3 sm:mt-4 border border-slate-200 bg-slate-50 p-3 text-xs sm:text-sm text-slate-600">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
-                  <div className="w-full sm:w-auto">
-                    <div className="font-medium text-slate-900 mb-1">Tài khoản demo</div>
-                    <div className="space-y-0.5 text-xs">
-                      <div className="break-all">
-                        Email: <span className="font-mono text-slate-900">{DEV_EMAIL}</span>
-                      </div>
-                      <div>
-                        Mật khẩu: <span className="font-mono text-slate-900">{DEV_PASSWORD}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-none border-slate-200 bg-white text-slate-900 shadow-sm transition hover:bg-slate-100 w-full sm:w-auto shrink-0"
-                    onClick={fillDemo}
-                    disabled={loading}
-                  >
-                    Điền nhanh
-                  </Button>
-                </div>
-              </div>
 
               <div className="my-4 sm:my-5">
                 <Separator />

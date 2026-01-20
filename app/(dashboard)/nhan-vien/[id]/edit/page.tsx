@@ -420,7 +420,7 @@ export default function EmployeeEditPage() {
               <span className="font-semibold">{employee.departmentName ?? "—"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Lương</span>
+              <span className="text-slate-500">Lương cơ bản</span>
               <span className="font-semibold">
                 {employee.salary !== null && employee.salary !== undefined
                   ? `${new Intl.NumberFormat("vi-VN").format(employee.salary)} VND`
@@ -469,7 +469,7 @@ export default function EmployeeEditPage() {
             </div>
 
             <div>
-              <label className="text-sm text-slate-600">Lương (VND)</label>
+              <label className="text-sm text-slate-600">Lương cơ bản (VND)</label>
               <Input
                 type="number"
                 min={0}

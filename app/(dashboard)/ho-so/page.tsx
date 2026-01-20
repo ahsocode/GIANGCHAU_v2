@@ -82,14 +82,6 @@ export default async function HoSoPage() {
                 <span className="font-semibold">{emp.code}</span>
               </div>
             )}
-            {emp?.salary !== undefined && emp?.salary !== null && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">Lương</span>
-                <span className="font-semibold">
-                  {new Intl.NumberFormat("vi-VN").format(emp.salary)} VND
-                </span>
-              </div>
-            )}
             {emp && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Loại</span>
@@ -109,6 +101,14 @@ export default async function HoSoPage() {
         <div className="bg-white border border-slate-200 rounded-lg p-6 md:p-8 h-full flex flex-col">
           <h2 className="text-base font-semibold text-slate-900 mb-4">Thông tin chi tiết</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm flex-1">
+            <div>
+              <dt className="text-slate-500">Lương cơ bản</dt>
+              <dd className="font-semibold text-slate-900">
+                {emp?.salary !== undefined && emp?.salary !== null
+                  ? `${new Intl.NumberFormat("vi-VN").format(emp.salary)} VND`
+                  : "—"}
+              </dd>
+            </div>
             <div>
               <dt className="text-slate-500">Email tài khoản</dt>
               <dd className="font-semibold text-slate-900">{account.email}</dd>
