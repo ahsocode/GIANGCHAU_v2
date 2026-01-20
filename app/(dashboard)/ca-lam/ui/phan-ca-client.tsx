@@ -13,6 +13,18 @@ type EmployeeOption = {
   positionName?: string | null;
 };
 
+type DepartmentOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type PositionOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type ShiftOption = {
   id: string;
   code: string;
@@ -47,23 +59,6 @@ function formatDateOnly(date: Date) {
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function getDatesBetween(start: Date, end: Date) {
-  const dates: Date[] = [];
-  const current = new Date(start);
-  while (current <= end) {
-    dates.push(new Date(current));
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-  return dates;
 }
 
 function startOfMonth(date: Date) {
@@ -115,10 +110,18 @@ function toShortLabel(value: string) {
 }
 
 export function PhanCaClient() {
+  const [assignTarget, setAssignTarget] = useState<"employee" | "department" | "position">("employee");
   const [employeeQuery, setEmployeeQuery] = useState("");
   const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [positions, setPositions] = useState<PositionOption[]>([]);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
+  const [selectedPositionId, setSelectedPositionId] = useState("");
+  const [groupEmployees, setGroupEmployees] = useState<EmployeeOption[]>([]);
+  const [groupSelected, setGroupSelected] = useState<Set<string>>(new Set());
+  const [groupLoading, setGroupLoading] = useState(false);
 
   const [shiftOptions, setShiftOptions] = useState<ShiftOption[]>([]);
   const [shiftLoading, setShiftLoading] = useState(false);
@@ -165,8 +168,90 @@ export function PhanCaClient() {
 
   useEffect(() => {
     let active = true;
+    async function fetchMeta() {
+      try {
+        const [deptRes, posRes] = await Promise.all([fetch("/api/bo-phan"), fetch("/api/chuc-vu")]);
+        const deptData = deptRes.ok ? ((await deptRes.json()) as { items?: DepartmentOption[] }) : { items: [] };
+        const posData = posRes.ok ? ((await posRes.json()) as { items?: PositionOption[] }) : { items: [] };
+        if (!active) return;
+        setDepartments(deptData.items ?? []);
+        setPositions(posData.items ?? []);
+      } catch (error: unknown) {
+        console.error(error);
+        toast.error("Không tải được danh sách bộ phận/chức vụ.");
+      }
+    }
+    fetchMeta();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (assignTarget === "employee") {
+      setSelectedDepartmentId("");
+      setSelectedPositionId("");
+      setGroupEmployees([]);
+      setGroupSelected(new Set());
+      return;
+    }
+    setSelectedEmployee(null);
+    setEmployeeQuery("");
+    setEmployeeOptions([]);
+  }, [assignTarget]);
+
+  useEffect(() => {
+    let active = true;
+    if (assignTarget === "department" && selectedDepartmentId) {
+      setGroupLoading(true);
+      fetch(`/api/nhan-vien?departmentId=${selectedDepartmentId}&page=1&pageSize=200`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error("Không tải được danh sách nhân viên.");
+          const data = (await res.json()) as { items?: EmployeeOption[] };
+          if (!active) return;
+          setGroupEmployees(data.items ?? []);
+          setGroupSelected(new Set());
+        })
+        .catch((error: unknown) => {
+          console.error(error);
+          toast.error("Không tải được danh sách nhân viên.");
+        })
+        .finally(() => {
+          if (active) setGroupLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+    if (assignTarget === "position" && selectedPositionId) {
+      setGroupLoading(true);
+      fetch(`/api/nhan-vien?positionId=${selectedPositionId}&page=1&pageSize=200`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error("Không tải được danh sách nhân viên.");
+          const data = (await res.json()) as { items?: EmployeeOption[] };
+          if (!active) return;
+          setGroupEmployees(data.items ?? []);
+          setGroupSelected(new Set());
+        })
+        .catch((error: unknown) => {
+          console.error(error);
+          toast.error("Không tải được danh sách nhân viên.");
+        })
+        .finally(() => {
+          if (active) setGroupLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+    setGroupEmployees([]);
+    setGroupSelected(new Set());
+  }, [assignTarget, selectedDepartmentId, selectedPositionId]);
+
+  useEffect(() => {
+    let active = true;
     const q = employeeQuery.trim();
-    if (q.length < 2) {
+    if (assignTarget !== "employee" || q.length < 2) {
       setEmployeeOptions([]);
       return;
     }
@@ -196,7 +281,7 @@ export function PhanCaClient() {
       active = false;
       clearTimeout(timer);
     };
-  }, [employeeQuery]);
+  }, [assignTarget, employeeQuery]);
 
   const selectedShift = useMemo(
     () => shiftOptions.find((item) => item.id === selectedShiftId) ?? null,
@@ -210,16 +295,17 @@ useEffect(() => {
   }
 }, [rangeStart, rangeEnd, selectMode]);
 
-  const refreshScheduleMap = useCallback(async (employeeId: string) => {
+  const refreshScheduleMap = useCallback(async (employeeIds: string[]) => {
     const monthStart = startOfMonth(calendarMonth);
     const rangeStartDate = new Date(monthStart);
     const rangeEndDate = addMonths(monthStart, 2);
     rangeEndDate.setDate(0);
     const query = new URLSearchParams({
-      employeeId,
       from: formatDateOnly(rangeStartDate),
       to: formatDateOnly(rangeEndDate),
     });
+    if (employeeIds.length === 1) query.set("employeeId", employeeIds[0]);
+    else query.set("employeeIds", employeeIds.join(","));
     const res = await fetch(`/api/phan-ca/lich?${query.toString()}`);
     if (!res.ok) throw new Error("Không tải được lịch phân ca.");
     const data = (await res.json()) as { items?: Array<{ date: string; name?: string | null }> };
@@ -231,7 +317,7 @@ useEffect(() => {
   }, [calendarMonth]);
 
   const refreshHolidayMap = useCallback(
-    async (employeeId?: string | null) => {
+    async (employeeIds: string[]) => {
       const monthStart = startOfMonth(calendarMonth);
       const rangeStartDate = new Date(monthStart);
       const rangeEndDate = addMonths(monthStart, 2);
@@ -240,7 +326,8 @@ useEffect(() => {
         from: formatDateOnly(rangeStartDate),
         to: formatDateOnly(rangeEndDate),
       });
-      if (employeeId) query.set("employeeId", employeeId);
+      if (employeeIds.length === 1) query.set("employeeId", employeeIds[0]);
+      else if (employeeIds.length > 1) query.set("employeeIds", employeeIds.join(","));
       const res = await fetch(`/api/ngay-nghi/lich?${query.toString()}`);
       if (!res.ok) throw new Error("Không tải được lịch ngày nghỉ.");
       const data = (await res.json()) as { items?: HolidayItem[] };
@@ -256,14 +343,19 @@ useEffect(() => {
   );
 
   useEffect(() => {
-    const employeeId = selectedEmployee?.id;
+    const employeeIds =
+      assignTarget === "employee"
+        ? selectedEmployee?.id
+          ? [selectedEmployee.id]
+          : []
+        : Array.from(groupSelected);
     let active = true;
     setScheduleLoading(true);
     setHolidayLoading(true);
-    const schedulePromise = employeeId
-      ? refreshScheduleMap(employeeId)
-      : Promise.resolve(setScheduleMap({}));
-    const holidayPromise = refreshHolidayMap(employeeId);
+    const schedulePromise =
+      employeeIds.length > 0 ? refreshScheduleMap(employeeIds) : Promise.resolve(setScheduleMap({}));
+    const holidayPromise =
+      employeeIds.length > 0 ? refreshHolidayMap(employeeIds) : Promise.resolve(setHolidayMap({}));
     Promise.all([schedulePromise, holidayPromise])
       .catch((error: unknown) => {
         console.error(error);
@@ -277,7 +369,7 @@ useEffect(() => {
     return () => {
       active = false;
     };
-  }, [calendarMonth, refreshHolidayMap, refreshScheduleMap, selectedEmployee?.id]);
+  }, [assignTarget, calendarMonth, groupSelected, refreshHolidayMap, refreshScheduleMap, selectedEmployee?.id]);
 
 function handleDateSelect(day: Date) {
   const dayKey = formatDateOnly(day);
@@ -336,7 +428,13 @@ function handleDateSelect(day: Date) {
   }
 
 async function handleCreateSchedules() {
-  if (!selectedEmployee) {
+  const targetEmployeeIds =
+    assignTarget === "employee"
+      ? selectedEmployee?.id
+        ? [selectedEmployee.id]
+        : []
+      : Array.from(groupSelected);
+  if (targetEmployeeIds.length === 0) {
     toast.error("Vui lòng chọn nhân viên.");
     return;
   }
@@ -374,12 +472,12 @@ async function handleCreateSchedules() {
     let updatedTotal = 0;
     let skippedTotal = 0;
 
-    const postSchedule = async (startDateValue: string, endDateValue: string) => {
+    const postSchedule = async (employeeIdValue: string, startDateValue: string, endDateValue: string) => {
       const res = await fetch("/api/phan-ca", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: selectedEmployee.id,
+          employeeId: employeeIdValue,
           workShiftId: selectedShiftId,
           startDate: startDateValue,
           endDate: endDateValue,
@@ -398,11 +496,15 @@ async function handleCreateSchedules() {
     };
 
     if (selectMode === "range") {
-      await postSchedule(dateFrom, dateTo);
+      for (const employeeIdValue of targetEmployeeIds) {
+        await postSchedule(employeeIdValue, dateFrom, dateTo);
+      }
     } else {
       const dates = [...selectedDates].sort();
-      for (const dateValue of dates) {
-        await postSchedule(dateValue, dateValue);
+      for (const employeeIdValue of targetEmployeeIds) {
+        for (const dateValue of dates) {
+          await postSchedule(employeeIdValue, dateValue, dateValue);
+        }
       }
     }
 
@@ -414,10 +516,10 @@ async function handleCreateSchedules() {
       setDateTo("");
     setSelectedWeekdays([]);
     setSelectedDates(new Set());
-    if (selectedEmployee?.id) {
-      await refreshScheduleMap(selectedEmployee.id);
+    if (targetEmployeeIds.length > 0) {
+      await refreshScheduleMap(targetEmployeeIds);
+      await refreshHolidayMap(targetEmployeeIds);
     }
-    await refreshHolidayMap(selectedEmployee?.id ?? null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Không thể tạo lịch phân ca.";
       toast.error(message);
@@ -428,7 +530,13 @@ async function handleCreateSchedules() {
   }
 
   async function handleRemoveSchedules() {
-    if (!selectedEmployee) {
+    const targetEmployeeIds =
+      assignTarget === "employee"
+        ? selectedEmployee?.id
+          ? [selectedEmployee.id]
+          : []
+        : Array.from(groupSelected);
+    if (targetEmployeeIds.length === 0) {
       toast.error("Vui lòng chọn nhân viên.");
       return;
     }
@@ -459,12 +567,12 @@ async function handleCreateSchedules() {
     try {
       setSubmitting(true);
       let deletedTotal = 0;
-      const postRemove = async (startDateValue: string, endDateValue: string) => {
+      const postRemove = async (employeeIdValue: string, startDateValue: string, endDateValue: string) => {
         const res = await fetch("/api/phan-ca/remove", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            employeeId: selectedEmployee.id,
+            employeeId: employeeIdValue,
             workShiftId: selectedShiftId || undefined,
             startDate: startDateValue,
             endDate: endDateValue,
@@ -480,20 +588,24 @@ async function handleCreateSchedules() {
       };
 
       if (selectMode === "range") {
-        await postRemove(dateFrom, dateTo);
+        for (const employeeIdValue of targetEmployeeIds) {
+          await postRemove(employeeIdValue, dateFrom, dateTo);
+        }
       } else {
         const dates = [...selectedDates].sort();
-        for (const dateValue of dates) {
-          await postRemove(dateValue, dateValue);
+        for (const employeeIdValue of targetEmployeeIds) {
+          for (const dateValue of dates) {
+            await postRemove(employeeIdValue, dateValue, dateValue);
+          }
         }
       }
 
       toast.success(`Đã gỡ ${deletedTotal} lịch phân ca.`);
       setSelectedDates(new Set());
-      if (selectedEmployee?.id) {
-        await refreshScheduleMap(selectedEmployee.id);
+      if (targetEmployeeIds.length > 0) {
+        await refreshScheduleMap(targetEmployeeIds);
+        await refreshHolidayMap(targetEmployeeIds);
       }
-      await refreshHolidayMap(selectedEmployee?.id ?? null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Không thể gỡ ca làm.";
       toast.error(message);
@@ -514,49 +626,196 @@ async function handleCreateSchedules() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Nhân viên</label>
-              <Input
-                placeholder="Nhập tên hoặc mã nhân viên..."
-                value={employeeQuery}
-                onChange={(event) => {
-                  setEmployeeQuery(event.target.value);
-                  setSelectedEmployee(null);
-                }}
-                className="rounded-none"
-              />
-              <div className="rounded-md border border-slate-200 bg-white max-h-44 overflow-y-auto">
-                {employeeLoading ? (
-                  <div className="px-3 py-2 text-sm text-slate-500">Đang tìm...</div>
-                ) : employeeOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-500">
-                    {employeeQuery.trim().length >= 2 ? "Không tìm thấy nhân viên." : "Nhập ít nhất 2 ký tự."}
-                  </div>
-                ) : (
-                  employeeOptions.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedEmployee(item);
-                        setEmployeeQuery(`${item.fullName} (${item.code})`);
-                        setEmployeeOptions([]);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                    >
-                      <div className="font-medium text-slate-900">
-                        {item.fullName} <span className="text-slate-500">({item.code})</span>
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {item.departmentName ?? "Chưa có bộ phận"} · {item.positionName ?? "Chưa có chức vụ"}
-                      </div>
-                    </button>
-                  ))
-                )}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Phân ca theo</label>
+                <select
+                  value={assignTarget}
+                  onChange={(event) => setAssignTarget(event.target.value as typeof assignTarget)}
+                  className="rounded-none border border-slate-300 bg-white px-2 py-2 text-sm w-full"
+                >
+                  <option value="employee">Cá nhân</option>
+                  <option value="department">Bộ phận</option>
+                  <option value="position">Chức vụ</option>
+                </select>
               </div>
-              {selectedEmployee && (
-                <div className="text-xs text-emerald-700">
-                  Đã chọn: <span className="font-semibold">{selectedEmployee.fullName}</span>
+
+              {assignTarget === "employee" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nhân viên</label>
+                  <Input
+                    placeholder="Nhập tên hoặc mã nhân viên..."
+                    value={employeeQuery}
+                    onChange={(event) => {
+                      setEmployeeQuery(event.target.value);
+                      setSelectedEmployee(null);
+                    }}
+                    className="rounded-none"
+                  />
+                  <div className="rounded-md border border-slate-200 bg-white max-h-44 overflow-y-auto">
+                    {employeeLoading ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">Đang tìm...</div>
+                    ) : employeeOptions.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">
+                        {employeeQuery.trim().length >= 2 ? "Không tìm thấy nhân viên." : "Nhập ít nhất 2 ký tự."}
+                      </div>
+                    ) : (
+                      employeeOptions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedEmployee(item);
+                            setEmployeeQuery(`${item.fullName} (${item.code})`);
+                            setEmployeeOptions([]);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                        >
+                          <div className="font-medium text-slate-900">
+                            {item.fullName} <span className="text-slate-500">({item.code})</span>
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {item.departmentName ?? "Chưa có bộ phận"} · {item.positionName ?? "Chưa có chức vụ"}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  {selectedEmployee && (
+                    <div className="text-xs text-emerald-700">
+                      Đã chọn: <span className="font-semibold">{selectedEmployee.fullName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {assignTarget === "department" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Bộ phận</label>
+                  <select
+                    value={selectedDepartmentId}
+                    onChange={(event) => setSelectedDepartmentId(event.target.value)}
+                    className="rounded-none border border-slate-300 bg-white px-2 py-2 text-sm w-full"
+                  >
+                    <option value="">-- Chọn bộ phận --</option>
+                    {departments.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code} - {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="rounded-md border border-slate-200 bg-white max-h-52 overflow-y-auto">
+                    {groupLoading ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">Đang tải...</div>
+                    ) : groupEmployees.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">Chưa có nhân viên.</div>
+                    ) : (
+                      <>
+                        <label className="flex items-center gap-2 px-3 py-2 text-sm border-b">
+                          <input
+                            type="checkbox"
+                            checked={groupEmployees.length > 0 && groupSelected.size === groupEmployees.length}
+                            onChange={(event) => {
+                              if (event.target.checked) {
+                                setGroupSelected(new Set(groupEmployees.map((item) => item.id)));
+                              } else {
+                                setGroupSelected(new Set());
+                              }
+                            }}
+                          />
+                          Chọn tất cả
+                        </label>
+                        {groupEmployees.map((item) => (
+                          <label key={item.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={groupSelected.has(item.id)}
+                              onChange={(event) => {
+                                setGroupSelected((prev) => {
+                                  const next = new Set(prev);
+                                  if (event.target.checked) next.add(item.id);
+                                  else next.delete(item.id);
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span className="font-medium">{item.fullName}</span>
+                            <span className="text-slate-500">({item.code})</span>
+                          </label>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  {groupSelected.size > 0 && (
+                    <div className="text-xs text-emerald-700">
+                      Đã chọn: <span className="font-semibold">{groupSelected.size}</span> nhân viên
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {assignTarget === "position" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Chức vụ</label>
+                  <select
+                    value={selectedPositionId}
+                    onChange={(event) => setSelectedPositionId(event.target.value)}
+                    className="rounded-none border border-slate-300 bg-white px-2 py-2 text-sm w-full"
+                  >
+                    <option value="">-- Chọn chức vụ --</option>
+                    {positions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code} - {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="rounded-md border border-slate-200 bg-white max-h-52 overflow-y-auto">
+                    {groupLoading ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">Đang tải...</div>
+                    ) : groupEmployees.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">Chưa có nhân viên.</div>
+                    ) : (
+                      <>
+                        <label className="flex items-center gap-2 px-3 py-2 text-sm border-b">
+                          <input
+                            type="checkbox"
+                            checked={groupEmployees.length > 0 && groupSelected.size === groupEmployees.length}
+                            onChange={(event) => {
+                              if (event.target.checked) {
+                                setGroupSelected(new Set(groupEmployees.map((item) => item.id)));
+                              } else {
+                                setGroupSelected(new Set());
+                              }
+                            }}
+                          />
+                          Chọn tất cả
+                        </label>
+                        {groupEmployees.map((item) => (
+                          <label key={item.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={groupSelected.has(item.id)}
+                              onChange={(event) => {
+                                setGroupSelected((prev) => {
+                                  const next = new Set(prev);
+                                  if (event.target.checked) next.add(item.id);
+                                  else next.delete(item.id);
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span className="font-medium">{item.fullName}</span>
+                            <span className="text-slate-500">({item.code})</span>
+                          </label>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  {groupSelected.size > 0 && (
+                    <div className="text-xs text-emerald-700">
+                      Đã chọn: <span className="font-semibold">{groupSelected.size}</span> nhân viên
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -746,11 +1005,11 @@ async function handleCreateSchedules() {
                                 ? "border-slate-200 bg-white text-slate-900 hover:border-emerald-300"
                                 : "border-transparent text-slate-300"
                             } ${
-                              isToday && inMonth ? "!bg-blue-50 !border-blue-200" : ""
-                            } ${inRange ? "!bg-emerald-100 !border-emerald-300 !text-emerald-700" : ""} ${
-                              isStart || isEnd ? "!bg-emerald-500 !text-white !border-emerald-500" : ""
-                            } ${isSelectedSingle ? "!bg-emerald-500 !text-white !border-emerald-500" : ""} ${
-                              hasConflict && !isSelectedAny ? "!border-red-500 !bg-amber-100" : ""
+                              isToday && inMonth ? "bg-blue-50! border-blue-200!" : ""
+                            } ${inRange ? "bg-emerald-100! border-emerald-300! text-emerald-700!" : ""} ${
+                              isStart || isEnd ? "bg-emerald-500! text-white! border-emerald-500!" : ""
+                            } ${isSelectedSingle ? "bg-emerald-500! text-white! border-emerald-500!" : ""} ${
+                              hasConflict && !isSelectedAny ? "border-red-500! bg-amber-100!" : ""
                             }`}
                             title={
                               hasShift
