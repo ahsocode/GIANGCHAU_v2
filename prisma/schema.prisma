@@ -77,16 +77,22 @@ enum AttendanceStatus {
   LATE
   EARLY_LEAVE
   LATE_AND_EARLY
+  OVERTIME
+  NON_COMPLIANT
   NO_SHIFT
   INCOMPLETE
 }
 
 enum AttendanceCheckInStatus {
+  PENDING
+  MISSED
   ON_TIME
   LATE
 }
 
 enum AttendanceCheckOutStatus {
+  PENDING
+  MISSED
   ON_TIME
   EARLY
   OVERTIME

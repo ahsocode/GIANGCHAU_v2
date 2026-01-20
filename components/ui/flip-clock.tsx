@@ -14,27 +14,26 @@ function FlipDigit({ value }: FlipDigitProps) {
   const timeoutRef = useRef<number | null>(null);
   const topTimeoutRef = useRef<number | null>(null);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (value === current) return;
-    
-    // Set số mới vào next
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNext(value);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFlipping(true);
-    
+
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
     if (topTimeoutRef.current) window.clearTimeout(topTimeoutRef.current);
-    
-    // Sau 250ms (khi top flip đến ngang 90°), cập nhật topValue
+
     topTimeoutRef.current = window.setTimeout(() => {
       setTopValue(value);
     }, 250);
-    
-    // Sau animation xong + pause, cập nhật current
+
     timeoutRef.current = window.setTimeout(() => {
       setCurrent(value);
       setFlipping(false);
-    }, 800); // 250ms top + 250ms bottom + 300ms pause
-    
+    }, 800);
     return () => {
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
       if (topTimeoutRef.current) window.clearTimeout(topTimeoutRef.current);
@@ -43,22 +42,15 @@ function FlipDigit({ value }: FlipDigitProps) {
 
   return (
     <div className="flip-digit" aria-hidden="true">
-      {/* Tấm tĩnh top - hiển thị số mới sau khi top animation xong */}
       <div className="flip-half top">
         <span>{topValue}</span>
       </div>
-      
-      {/* Tấm tĩnh bottom - hiển thị số mới khi không flip, số hiện tại khi đang flip */}
       <div className="flip-half bottom">
         <span>{flipping ? current : next}</span>
       </div>
-      
-      {/* Tấm animation top - số cũ lật xuống */}
       <div className={`flip-anim top ${flipping ? "flip" : ""}`}>
         <span>{current}</span>
       </div>
-      
-      {/* Tấm animation bottom - số mới lật lên */}
       <div className={`flip-anim bottom ${flipping ? "flip" : ""}`}>
         <span>{next}</span>
       </div>

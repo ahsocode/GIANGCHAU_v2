@@ -26,8 +26,8 @@ type AttendanceInfo = {
   lateMinutes?: number;
   earlyLeaveMinutes?: number;
   overtimeMinutes?: number;
-  checkInStatus?: "ON_TIME" | "LATE" | null;
-  checkOutStatus?: "ON_TIME" | "EARLY" | "OVERTIME" | null;
+  checkInStatus?: "PENDING" | "MISSED" | "ON_TIME" | "LATE" | null;
+  checkOutStatus?: "PENDING" | "MISSED" | "ON_TIME" | "EARLY" | "OVERTIME" | null;
 };
 
 type AttendanceState = {
@@ -72,12 +72,16 @@ function resolveShiftMinutes(date: string, startTime: string, endTime: string) {
 }
 
 function mapCheckInStatus(value?: string | null) {
+  if (value === "PENDING") return "Chưa";
+  if (value === "MISSED") return "Thiếu";
   if (value === "LATE") return "Trễ giờ";
   if (value === "ON_TIME") return "Đúng giờ";
   return "Đúng giờ";
 }
 
 function mapCheckOutStatus(value?: string | null) {
+  if (value === "PENDING") return "Chưa";
+  if (value === "MISSED") return "Thiếu";
   if (value === "EARLY") return "Về sớm";
   if (value === "OVERTIME") return "Tăng ca";
   if (value === "ON_TIME") return "Đúng giờ";
@@ -90,8 +94,10 @@ export function ChamCongClient() {
   const [submitting, setSubmitting] = useState(false);
   const [data, setData] = useState<AttendanceState | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     let timer: number;
     const tick = () => {
       const next = new Date();
@@ -207,10 +213,16 @@ export function ChamCongClient() {
         <div className="rounded-lg border bg-white p-4 sm:p-5">
           <div className="text-sm text-slate-500">Thời gian hiện tại</div>
           <div className="mt-3 flex w-full flex-col items-center gap-2 overflow-hidden">
-            <FlipClock className="clock-large" hours={clockHours} minutes={clockMinutes} seconds={clockSeconds} />
+            {mounted ? (
+              <FlipClock className="clock-large" hours={clockHours} minutes={clockMinutes} seconds={clockSeconds} />
+            ) : (
+              <div className="flip-clock clock-large" aria-hidden="true">
+                <span className="text-slate-500">--:--:--</span>
+              </div>
+            )}
             <div className="flex flex-col items-center justify-center text-center text-sm text-slate-600">
               <div className="text-xs uppercase tracking-widest text-slate-400">Ngày</div>
-              <div className="font-semibold text-slate-900">{dateLabel}</div>
+              <div className="font-semibold text-slate-900">{mounted ? dateLabel : "—"}</div>
             </div>
           </div>
         </div>

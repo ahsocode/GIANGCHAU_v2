@@ -93,6 +93,22 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function combineDateTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  next.setHours(hours || 0, minutes || 0, 0, 0);
+  return next;
+}
+
+function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
+  const start = combineDateTime(date, startTime);
+  let end = combineDateTime(date, endTime);
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return { start, end };
+}
+
 function toShortLabel(value: string) {
   const normalized = value
     .normalize("NFD")
@@ -126,6 +142,7 @@ export function PhanCaClient() {
   const [shiftOptions, setShiftOptions] = useState<ShiftOption[]>([]);
   const [shiftLoading, setShiftLoading] = useState(false);
   const [selectedShiftId, setSelectedShiftId] = useState<string>("");
+
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -372,6 +389,16 @@ useEffect(() => {
   }, [assignTarget, calendarMonth, groupSelected, refreshHolidayMap, refreshScheduleMap, selectedEmployee?.id]);
 
 function handleDateSelect(day: Date) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const isPast = day.getTime() < todayStart.getTime();
+  const isToday = isSameDay(day, now);
+  if (isPast) return;
+  if (isToday && selectedShift) {
+    const window = resolveShiftWindow(day, selectedShift.startTime, selectedShift.endTime);
+    if (now.getTime() > window.end.getTime()) return;
+  }
+
   const dayKey = formatDateOnly(day);
   if (selectMode === "single") {
     setSelectedDates((prev) => {
@@ -990,7 +1017,16 @@ async function handleCreateSchedules() {
                           holidayLabel && shiftName
                             ? `${toShortLabel(holidayLabel)} / ${toShortLabel(shiftName)}`
                             : toShortLabel(shiftName ?? holidayLabel ?? "");
-                        const isToday = isSameDay(day, new Date());
+                        const now = new Date();
+                        const isToday = isSameDay(day, now);
+                        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        const isPast = day.getTime() < todayStart.getTime();
+                        const isTodayBlocked =
+                          isToday && selectedShift
+                            ? now.getTime() >
+                              resolveShiftWindow(day, selectedShift.startTime, selectedShift.endTime).end.getTime()
+                            : false;
+                        const isBlocked = isPast || isTodayBlocked;
                         const isSelected = isStart || isEnd;
                         const isSelectedSingle =
                           selectMode === "single" && selectedDates.has(dayKey);
@@ -1000,9 +1036,12 @@ async function handleCreateSchedules() {
                             key={dayKey}
                             type="button"
                             onClick={() => handleDateSelect(day)}
+                            disabled={isBlocked}
                             className={`relative flex h-12 flex-col items-center justify-start gap-0.5 rounded-md border pt-3 text-[11px] transition sm:h-14 sm:pt-4 sm:text-sm ${
                               inMonth
-                                ? "border-slate-200 bg-white text-slate-900 hover:border-emerald-300"
+                                ? isBlocked
+                                  ? "border-slate-200 bg-slate-50 text-slate-400"
+                                  : "border-slate-200 bg-white text-slate-900 hover:border-emerald-300"
                                 : "border-transparent text-slate-300"
                             } ${
                               isToday && inMonth ? "bg-blue-50! border-blue-200!" : ""
@@ -1010,9 +1049,13 @@ async function handleCreateSchedules() {
                               isStart || isEnd ? "bg-emerald-500! text-white! border-emerald-500!" : ""
                             } ${isSelectedSingle ? "bg-emerald-500! text-white! border-emerald-500!" : ""} ${
                               hasConflict && !isSelectedAny ? "border-red-500! bg-amber-100!" : ""
-                            }`}
+                            } ${isBlocked ? "cursor-not-allowed opacity-60" : ""}`}
                             title={
-                              hasShift
+                              isPast
+                                ? "Không thể phân ca cho ngày trước hôm nay"
+                                : isTodayBlocked
+                                  ? "Đã quá thời gian check-in cho ca hôm nay"
+                                  : hasShift
                                 ? "Ngày này đã có ca làm"
                                 : hasHoliday
                                   ? "Ngày nghỉ"
