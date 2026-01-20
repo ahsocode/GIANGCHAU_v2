@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,23 +31,6 @@ function formatDateOnly(date: Date) {
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function getDatesBetween(start: Date, end: Date) {
-  const dates: Date[] = [];
-  const current = new Date(start);
-  while (current <= end) {
-    dates.push(new Date(current));
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-  return dates;
 }
 
 function startOfMonth(date: Date) {
@@ -365,12 +348,6 @@ export function HolidaySetClient() {
     setDateTo("");
   }
 
-  const rangeDays = useMemo(() => {
-    if (!rangeStart || !rangeEnd) return [];
-    const [start, end] = rangeStart <= rangeEnd ? [rangeStart, rangeEnd] : [rangeEnd, rangeStart];
-    return getDatesBetween(start, end).map(formatDateOnly);
-  }, [rangeStart, rangeEnd]);
-
   return (
     <div className="space-y-4">
       <section className="rounded-lg border bg-white p-4 space-y-4">
@@ -513,6 +490,22 @@ export function HolidaySetClient() {
             >
               Hôm nay: {new Intl.DateTimeFormat("vi-VN").format(new Date())}
             </button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none w-full sm:w-auto"
+              onClick={() => setCalendarMonth(addMonths(calendarMonth, -1))}
+            >
+              Tháng trước
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none w-full sm:w-auto"
+              onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+            >
+              Tháng sau
+            </Button>
             <Button
               type="button"
               variant={selectMode === "single" ? "default" : "outline"}

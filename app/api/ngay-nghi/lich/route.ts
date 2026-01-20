@@ -52,6 +52,9 @@ export async function GET(request: Request) {
   const from = searchParams.get("from")?.trim();
   const to = searchParams.get("to")?.trim();
   const employeeId = searchParams.get("employeeId")?.trim();
+  const employeeIdsParam = searchParams.get("employeeIds")?.trim();
+  const departmentId = searchParams.get("departmentId")?.trim();
+  const positionId = searchParams.get("positionId")?.trim();
 
   if (!from || !to) {
     return NextResponse.json({ items: [] });
@@ -63,9 +66,124 @@ export async function GET(request: Request) {
     return NextResponse.json({ items: [] });
   }
 
-  const context = await resolveEmployeeContext(employeeId);
   const dateFilter = { date: { gte: start, lte: end } };
 
+  if (employeeIdsParam || departmentId || positionId) {
+    let employees = [] as Array<{ id: string; departmentId: string | null; positionId: string | null }>;
+    if (employeeIdsParam) {
+      const ids = employeeIdsParam
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (ids.length === 0) return NextResponse.json({ items: [] });
+      employees = await prisma.employee.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, departmentId: true, positionId: true },
+      });
+    } else {
+      employees = await prisma.employee.findMany({
+        where: {
+          ...(departmentId ? { departmentId } : {}),
+          ...(positionId ? { positionId } : {}),
+        },
+        select: { id: true, departmentId: true, positionId: true },
+      });
+    }
+
+    if (employees.length === 0) return NextResponse.json({ items: [] });
+
+    const allEmployeeIds = employees.map((emp) => emp.id);
+    const employeesByDepartment = new Map<string, string[]>();
+    const employeesByPosition = new Map<string, string[]>();
+
+    employees.forEach((emp) => {
+      if (emp.departmentId) {
+        if (!employeesByDepartment.has(emp.departmentId)) employeesByDepartment.set(emp.departmentId, []);
+        employeesByDepartment.get(emp.departmentId)!.push(emp.id);
+      }
+      if (emp.positionId) {
+        if (!employeesByPosition.has(emp.positionId)) employeesByPosition.set(emp.positionId, []);
+        employeesByPosition.get(emp.positionId)!.push(emp.id);
+      }
+    });
+
+    const holidays = await prisma.holiday.findMany({
+      where: dateFilter,
+      select: {
+        date: true,
+        scope: true,
+        departmentId: true,
+        positionId: true,
+        employeeId: true,
+        holidayType: { select: { id: true, name: true, color: true, payPolicy: true } },
+      },
+    });
+
+    const dateMap = new Map<string, { employees: Set<string>; typeIds: Set<string> }>();
+    const typeMeta = new Map<string, { name: string; color: string; payPolicy: "PAID" | "UNPAID" | "LEAVE" }>();
+
+    holidays.forEach((holiday) => {
+      if (!typeMeta.has(holiday.holidayType.id)) {
+        typeMeta.set(holiday.holidayType.id, {
+          name: holiday.holidayType.name,
+          color: holiday.holidayType.color,
+          payPolicy: holiday.holidayType.payPolicy,
+        });
+      }
+      let affected: string[] = [];
+      if (holiday.scope === "ALL") {
+        affected = allEmployeeIds;
+      } else if (holiday.scope === "EMPLOYEE" && holiday.employeeId) {
+        if (allEmployeeIds.includes(holiday.employeeId)) {
+          affected = [holiday.employeeId];
+        }
+      } else if (holiday.scope === "DEPARTMENT" && holiday.departmentId) {
+        affected = employeesByDepartment.get(holiday.departmentId) ?? [];
+      } else if (holiday.scope === "POSITION" && holiday.positionId) {
+        affected = employeesByPosition.get(holiday.positionId) ?? [];
+      }
+
+      if (affected.length === 0) return;
+      const key = holiday.date.toISOString().slice(0, 10);
+      if (!dateMap.has(key)) {
+        dateMap.set(key, {
+          employees: new Set<string>(),
+          typeIds: new Set<string>(),
+        });
+      }
+      const entry = dateMap.get(key)!;
+      affected.forEach((id) => entry.employees.add(id));
+      entry.typeIds.add(holiday.holidayType.id);
+    });
+
+    const items = [...dateMap.entries()]
+      .filter(([, entry]) => entry.employees.size === allEmployeeIds.length)
+      .map(([date, entry]) => {
+        if (entry.typeIds.size === 1) {
+          const typeId = [...entry.typeIds][0];
+          const meta = typeMeta.get(typeId);
+          return {
+            date,
+            name: meta?.name ?? "Ngày nghỉ",
+            color: meta?.color ?? "#F59E0B",
+            payPolicy: meta?.payPolicy ?? "PAID",
+            scope: "ALL" as const,
+          };
+        }
+        return {
+          date,
+          name: "Nhiều loại nghỉ",
+          color: "#F59E0B",
+          payPolicy: "PAID" as const,
+          scope: "ALL" as const,
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return NextResponse.json({ items });
+  }
+
+  const context = await resolveEmployeeContext(employeeId);
   const where = context
     ? {
         ...dateFilter,

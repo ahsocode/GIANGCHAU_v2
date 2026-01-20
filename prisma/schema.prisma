@@ -81,6 +81,17 @@ enum AttendanceStatus {
   INCOMPLETE
 }
 
+enum AttendanceCheckInStatus {
+  ON_TIME
+  LATE
+}
+
+enum AttendanceCheckOutStatus {
+  ON_TIME
+  EARLY
+  OVERTIME
+}
+
 enum OvertimeStatus {
   DRAFT
   SUBMITTED
@@ -395,6 +406,8 @@ model AttendanceRecord {
   earlyLeaveMinutes Int @default(0)
 
   status AttendanceStatus @default(INCOMPLETE)
+  checkInStatus  AttendanceCheckInStatus?
+  checkOutStatus AttendanceCheckOutStatus?
   source AttendanceSource @default(WEB)
   note   String?
 
