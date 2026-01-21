@@ -41,9 +41,14 @@ export default async function HoSoPage() {
           <h1 className="text-2xl font-semibold text-slate-900">{emp?.fullName || account.email}</h1>
           {emp?.code && <p className="text-sm text-slate-500">Mã: {emp.code}</p>}
         </div>
-        <Button asChild className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600">
-          <Link href="/ho-so/chinh-sua">Cập nhật thông tin cá nhân</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600">
+            <Link href="/ho-so/chinh-sua">Cập nhật thông tin cá nhân</Link>
+          </Button>
+          <Button asChild variant="outline" className="rounded-none">
+            <Link href="/ho-so/doi-mat-khau">Đổi mật khẩu</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_3fr] xl:grid-cols-[1.2fr_2.8fr] gap-5">

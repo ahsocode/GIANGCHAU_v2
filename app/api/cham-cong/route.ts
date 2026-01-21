@@ -180,7 +180,11 @@ export async function GET() {
     attendanceRecord = attendanceRecord
       ? await prisma.attendanceRecord.update({
           where: { id: attendanceRecord.id },
-          data: { status: "ABSENT" },
+          data: {
+            status: "ABSENT",
+            checkInStatus: "MISSED",
+            checkOutStatus: "MISSED",
+          },
           select: {
             id: true,
             checkInAt: true,
@@ -200,6 +204,8 @@ export async function GET() {
             date: dateOnly,
             scheduleId: schedule.id,
             status: "ABSENT",
+            checkInStatus: "MISSED",
+            checkOutStatus: "MISSED",
             source: "WEB",
           },
           select: {
@@ -215,6 +221,68 @@ export async function GET() {
             checkOutStatus: true,
           },
         });
+  }
+
+  if (schedule && attendanceRecord?.checkInAt && !attendanceRecord.checkOutAt && shiftEnd) {
+    const autoCheckoutAt = new Date(shiftEnd.getTime() + 8 * 60 * 60 * 1000);
+    if (now.getTime() >= autoCheckoutAt.getTime()) {
+      const summary = computeSummary({
+        schedule: {
+          date: schedule.date,
+          plannedStart: schedule.plannedStart,
+          plannedEnd: schedule.plannedEnd,
+          plannedBreakMinutes: schedule.plannedBreakMinutes,
+          plannedLateGraceMinutes: schedule.plannedLateGraceMinutes,
+          plannedEarlyGraceMinutes: schedule.plannedEarlyGraceMinutes,
+        },
+        record: {
+          checkInAt: attendanceRecord.checkInAt,
+          checkOutAt: autoCheckoutAt,
+        },
+      });
+      const lateMinutes = summary?.lateMinutes ?? 0;
+      const earlyLeaveMinutes = summary?.earlyLeaveMinutes ?? 0;
+      const overtimeMinutes = summary?.overtimeMinutes ?? 0;
+      const status = "NON_COMPLIANT" as const;
+      const checkOutStatus: AttendanceCheckOutStatus | null = "MISSED";
+
+      attendanceRecord = await prisma.attendanceRecord.update({
+        where: { id: attendanceRecord.id },
+        data: {
+          checkOutAt: autoCheckoutAt,
+          status,
+          workMinutes: summary?.actualMinutes ?? 0,
+          breakMinutes: schedule.plannedBreakMinutes ?? 0,
+          lateMinutes,
+          earlyLeaveMinutes,
+          overtimeMinutes,
+          checkOutStatus,
+        },
+        select: {
+          id: true,
+          checkInAt: true,
+          checkOutAt: true,
+          workMinutes: true,
+          lateMinutes: true,
+          earlyLeaveMinutes: true,
+          overtimeMinutes: true,
+          status: true,
+          checkInStatus: true,
+          checkOutStatus: true,
+        },
+      });
+
+      await prisma.attendanceEvent.create({
+        data: {
+          employeeId,
+          date: dateOnly,
+          recordId: attendanceRecord.id,
+          type: "CHECK_OUT",
+          occurredAt: autoCheckoutAt,
+          source: "MANUAL",
+        },
+      });
+    }
   }
   const allowCheckIn =
     !!schedule &&
@@ -349,7 +417,7 @@ export async function POST(request: Request) {
         checkOutAt: null,
       },
     });
-    const checkInStatus: AttendanceCheckInStatus | null = summary?.checkInStatusValue ?? null;
+  const checkInStatus: AttendanceCheckInStatus | null = summary?.checkInStatusValue ?? null;
 
     const updated = record
       ? await prisma.attendanceRecord.update({
@@ -358,6 +426,7 @@ export async function POST(request: Request) {
             scheduleId: schedule.id,
             checkInAt: now,
             checkInStatus,
+            checkOutStatus: record.checkOutStatus ?? "PENDING",
           },
         })
       : await prisma.attendanceRecord.create({
@@ -368,6 +437,7 @@ export async function POST(request: Request) {
             checkInAt: now,
             checkInStatus,
             status: "INCOMPLETE",
+            checkOutStatus: "PENDING",
             source: "WEB",
           },
         });
@@ -411,10 +481,12 @@ export async function POST(request: Request) {
   const earlyLeaveMinutes = summary?.earlyLeaveMinutes ?? 0;
   const overtimeMinutes = summary?.overtimeMinutes ?? 0;
   const checkOutStatus: AttendanceCheckOutStatus | null = summary?.checkOutStatusValue ?? null;
-  let status: "PRESENT" | "LATE" | "EARLY_LEAVE" | "LATE_AND_EARLY" = "PRESENT";
+  let status: "PRESENT" | "LATE" | "EARLY_LEAVE" | "LATE_AND_EARLY" | "OVERTIME" | "NON_COMPLIANT" = "PRESENT";
   if (lateMinutes > 0 && earlyLeaveMinutes > 0) status = "LATE_AND_EARLY";
   else if (lateMinutes > 0) status = "LATE";
   else if (earlyLeaveMinutes > 0) status = "EARLY_LEAVE";
+  if (checkOutStatus === "OVERTIME" && lateMinutes === 0) status = "OVERTIME";
+  if (lateMinutes > 0 && overtimeMinutes >= lateMinutes && earlyLeaveMinutes === 0) status = "PRESENT";
 
   const updated = await prisma.attendanceRecord.update({
     where: { id: record.id },
