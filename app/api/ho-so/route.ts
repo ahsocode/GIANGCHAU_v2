@@ -74,6 +74,7 @@ export async function PATCH(request: Request) {
     personalEmail?: string | null;
     dob?: string | null;
     address?: string | null;
+    gender?: string | null;
     phone?: string | null;
     socialInsuranceNumber?: string | null;
     citizenIdNumber?: string | null;
@@ -99,13 +100,27 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: "Không tìm thấy nhân viên" }, { status: 404 });
   }
 
+  if (body.gender && !["MALE", "FEMALE", "OTHER"].includes(body.gender)) {
+    return NextResponse.json({ message: "Giới tính không hợp lệ." }, { status: 400 });
+  }
+
+  const updateData: {
+    personalEmail?: string | null;
+    dob?: Date | null;
+    address?: string | null;
+    gender?: "MALE" | "FEMALE" | "OTHER" | null;
+  } = {};
+
+  if ("personalEmail" in body) updateData.personalEmail = body.personalEmail ?? null;
+  if ("dob" in body) updateData.dob = body.dob ? new Date(body.dob) : null;
+  if ("address" in body) updateData.address = body.address ?? null;
+  if ("gender" in body) {
+    updateData.gender = body.gender ? (body.gender as "MALE" | "FEMALE" | "OTHER") : null;
+  }
+
   const updated = await prisma.employee.update({
     where: { id: employee.id },
-    data: {
-      personalEmail: body.personalEmail ?? null,
-      dob: body.dob ? new Date(body.dob) : null,
-      address: body.address ?? null,
-    },
+    data: updateData,
     include: {
       department: { select: { name: true } },
       position: { select: { name: true, code: true } },

@@ -9,6 +9,26 @@ function parseDateOnly(value: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function getLocalDateFromUtcDate(value: Date) {
+  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+}
+
+function combineDateTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const next = getLocalDateFromUtcDate(date);
+  next.setHours(hours || 0, minutes || 0, 0, 0);
+  return next;
+}
+
+function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
+  const start = combineDateTime(date, startTime);
+  let end = combineDateTime(date, endTime);
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return { start, end };
+}
+
 async function resolveEmployeeId(email: string) {
   const account = await prisma.account.findUnique({
     where: { email },
@@ -68,17 +88,50 @@ export async function GET(request: Request) {
     },
   });
 
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const autoAbsent = new Map<string, { status: string; checkInStatus: string | null; checkOutStatus: string | null }>();
+  const updates = records.map((record) => {
+    if (record.checkInAt) return null;
+    if (record.status && record.status !== "INCOMPLETE") return null;
+    if (record.date.getTime() > todayUtc.getTime()) return null;
+    if (!record.schedule?.plannedStart || !record.schedule?.plannedEnd) return null;
+    const window = resolveShiftWindow(record.date, record.schedule.plannedStart, record.schedule.plannedEnd);
+    if (now.getTime() <= window.end.getTime()) return null;
+    return prisma.attendanceRecord
+      .update({
+        where: { id: record.id },
+        data: {
+          status: "ABSENT",
+          checkInStatus: "MISSED",
+          checkOutStatus: "MISSED",
+        },
+        select: {
+          status: true,
+          checkInStatus: true,
+          checkOutStatus: true,
+        },
+      })
+      .then((updated) => {
+        autoAbsent.set(record.id, updated);
+      });
+  });
+  const pendingUpdates = updates.filter(Boolean);
+  if (pendingUpdates.length) {
+    await Promise.all(pendingUpdates);
+  }
+
   const items = records.map((record) => ({
     id: record.id,
     date: record.date.toISOString().slice(0, 10),
     checkInAt: record.checkInAt?.toISOString() ?? null,
     checkOutAt: record.checkOutAt?.toISOString() ?? null,
-    status: record.status,
+    status: autoAbsent.get(record.id)?.status ?? record.status,
     lateMinutes: record.lateMinutes ?? 0,
     earlyLeaveMinutes: record.earlyLeaveMinutes ?? 0,
     overtimeMinutes: record.overtimeMinutes ?? 0,
-    checkInStatus: record.checkInStatus ?? null,
-    checkOutStatus: record.checkOutStatus ?? null,
+    checkInStatus: autoAbsent.get(record.id)?.checkInStatus ?? record.checkInStatus ?? null,
+    checkOutStatus: autoAbsent.get(record.id)?.checkOutStatus ?? record.checkOutStatus ?? null,
     plannedName: record.schedule?.plannedName ?? null,
     plannedStart: record.schedule?.plannedStart ?? null,
     plannedEnd: record.schedule?.plannedEnd ?? null,

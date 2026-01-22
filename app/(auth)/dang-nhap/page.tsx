@@ -54,7 +54,7 @@ export default function DangNhapPage() {
           const profile = (await profileRes.json()) as { item?: { account?: { roleKey?: string } } };
           const roleKey = profile.item?.account?.roleKey;
           if (roleKey === "EMPLOYEE") {
-            redirectUrl = "/lich-lam";
+            redirectUrl = "/tong-hop";
           }
         }
       } catch (error) {

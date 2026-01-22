@@ -116,6 +116,41 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function parseDateOnly(value: string) {
+  return new Date(`${value}T00:00:00`);
+}
+
+function combineDateTime(dateOnly: string, time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const base = new Date(`${dateOnly}T00:00:00`);
+  base.setHours(hours || 0, minutes || 0, 0, 0);
+  return base;
+}
+
+function resolveShiftWindow(dateOnly: string, startTime: string, endTime: string) {
+  const start = combineDateTime(dateOnly, startTime);
+  let end = combineDateTime(dateOnly, endTime);
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return { start, end };
+}
+
+function isAutoAbsent(attendance: AttendanceItem, now: Date) {
+  if (attendance.checkInAt) return false;
+  if (attendance.status) return false;
+  if (!attendance.plannedStart || !attendance.plannedEnd) return false;
+  const today = startOfDay(now);
+  const attendanceDay = startOfDay(parseDateOnly(attendance.date));
+  if (attendanceDay.getTime() > today.getTime()) return false;
+  const window = resolveShiftWindow(attendance.date, attendance.plannedStart, attendance.plannedEnd);
+  return now.getTime() > window.end.getTime();
+}
+
 function mapCheckInStatus(value: string | null) {
   if (value === "PENDING") return "Chưa";
   if (value === "MISSED") return "Thiếu";
@@ -152,6 +187,7 @@ export function AttendanceHistoryClient() {
   const [holidayLoading, setHolidayLoading] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<AttendanceItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("");
+  const now = new Date();
 
   const monthRange = useMemo(() => {
     const from = startOfMonth(calendarMonth);
@@ -320,7 +356,8 @@ export function AttendanceHistoryClient() {
               day.getMonth() === new Date().getMonth() &&
               day.getDate() === new Date().getDate();
 
-            const isAbsent = attendance?.status === "ABSENT";
+            const shouldAutoAbsent = attendance ? isAutoAbsent(attendance, now) : false;
+            const isAbsent = attendance?.status === "ABSENT" || (!attendance?.status && shouldAutoAbsent);
 
             return (
               <button
@@ -359,7 +396,7 @@ export function AttendanceHistoryClient() {
                 )}
                 <span className="relative z-10 text-sm font-semibold">{day.getDate()}</span>
                 {attendance ? (
-                  attendance.status === "ABSENT" ? (
+                  isAbsent ? (
                     <span className="relative z-10 mt-1 text-[10px] font-semibold text-rose-600">
                       Vắng
                     </span>
@@ -433,7 +470,13 @@ export function AttendanceHistoryClient() {
               <div>
                 Trạng thái:{" "}
                 <span className="font-semibold text-slate-900">
-                  {mapAttendanceStatus(selectedAttendance.status)}
+                  {mapAttendanceStatus(
+                    selectedAttendance.status
+                      ? selectedAttendance.status
+                      : isAutoAbsent(selectedAttendance, now)
+                        ? "ABSENT"
+                        : selectedAttendance.status
+                  )}
                 </span>
               </div>
               <div>

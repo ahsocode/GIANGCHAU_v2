@@ -43,6 +43,7 @@ export default async function ChinhSuaHoSoPage() {
         personalEmail={emp?.personalEmail ?? ""}
         dob={emp?.dob ? emp.dob.toISOString().slice(0, 10) : ""}
         address={emp?.address ?? ""}
+        gender={emp?.gender ?? ""}
         phone={emp?.phone ?? ""}
         socialInsuranceNumber={emp?.socialInsuranceNumber ?? ""}
         citizenIdNumber={emp?.citizenIdNumber ?? ""}
@@ -56,6 +57,7 @@ function PersonalEditForm({
   personalEmail,
   dob,
   address,
+  gender,
   phone,
   socialInsuranceNumber,
   citizenIdNumber,
@@ -64,6 +66,7 @@ function PersonalEditForm({
   personalEmail: string;
   dob: string;
   address: string;
+  gender: string;
   phone: string;
   socialInsuranceNumber: string;
   citizenIdNumber: string;
@@ -72,7 +75,7 @@ function PersonalEditForm({
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
       <p className="text-sm text-slate-700">
-        Bạn có thể cập nhật Email cá nhân, Ngày sinh, Địa chỉ. Các mục SĐT / CCCD / BHXH cần gửi yêu cầu hỗ trợ để
+        Bạn có thể cập nhật Email cá nhân, Ngày sinh, Giới tính, Địa chỉ. Các mục SĐT / CCCD / BHXH cần gửi yêu cầu hỗ trợ để
         thay đổi.
       </p>
       <div className="text-sm text-slate-700">
@@ -85,6 +88,7 @@ function PersonalEditForm({
         personalEmail={personalEmail}
         dob={dob}
         address={address}
+        gender={gender}
         phone={phone}
         socialInsuranceNumber={socialInsuranceNumber}
         citizenIdNumber={citizenIdNumber}
