@@ -82,10 +82,10 @@ export function Sidebar({ role }: { role: RoleKey }) {
   const hrItems = allowBusiness ? items.filter((i) => hrKeys.has(i.key)) : [];
   const mainItems = allowBusiness ? items.filter((i) => !hrKeys.has(i.key)) : [];
   const personalItems = [
+    { key: "tong-hop", label: "Tổng hợp", href: "/tong-hop", icon: BarChart2 },
     { key: "ho-so", label: "Hồ sơ", href: "/ho-so", icon: UserCircle },
     { key: "lich-lam", label: "Lịch làm", href: "/lich-lam", icon: CalendarRange },
     { key: "cham-cong", label: "Chấm công", href: "/cham-cong", icon: Clock4 },
-    { key: "tong-hop", label: "Tổng hợp", href: "/tong-hop", icon: BarChart2 },
     { key: "yeu-cau", label: "Yêu cầu", href: "/yeu-cau", icon: MessageSquare },
   ];
   const primaryItems = isEmployee ? personalItems : mainItems;

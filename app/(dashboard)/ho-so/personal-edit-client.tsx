@@ -9,6 +9,7 @@ type Props = {
   personalEmail: string;
   dob: string;
   address: string;
+  gender: string;
   phone: string;
   socialInsuranceNumber: string;
   citizenIdNumber: string;
@@ -18,6 +19,7 @@ export default function PersonalEditClient(props: Props) {
   const [email, setEmail] = useState(props.personalEmail);
   const [dobValue, setDobValue] = useState(props.dob);
   const [addr, setAddr] = useState(props.address);
+  const [genderValue, setGenderValue] = useState(props.gender);
   const [saving, setSaving] = useState(false);
 
   const onSave = async () => {
@@ -30,6 +32,7 @@ export default function PersonalEditClient(props: Props) {
           personalEmail: email || null,
           dob: dobValue || null,
           address: addr || null,
+          gender: genderValue || null,
         }),
       });
       if (!res.ok) {
@@ -64,6 +67,19 @@ export default function PersonalEditClient(props: Props) {
           onChange={(e) => setDobValue(e.target.value)}
           className="rounded-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm text-slate-600">Giới tính</label>
+        <select
+          value={genderValue}
+          onChange={(e) => setGenderValue(e.target.value)}
+          className="w-full rounded-none border border-slate-300 bg-white px-3 py-2 text-sm"
+        >
+          <option value="">-- Chưa chọn --</option>
+          <option value="MALE">Nam</option>
+          <option value="FEMALE">Nữ</option>
+          <option value="OTHER">Khác</option>
+        </select>
       </div>
       <div className="space-y-2 md:col-span-2">
         <label className="text-sm text-slate-600">Địa chỉ</label>
