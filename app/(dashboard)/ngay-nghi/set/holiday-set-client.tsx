@@ -194,6 +194,7 @@ export function HolidaySetClient() {
     const query = new URLSearchParams({
       from: formatDateOnly(rangeStartDate),
       to: formatDateOnly(rangeEndDate),
+      scope: "ALL",
     });
     const res = await fetch(`/api/ngay-nghi/lich?${query.toString()}`);
     if (!res.ok) throw new Error("Không tải được lịch ngày nghỉ.");

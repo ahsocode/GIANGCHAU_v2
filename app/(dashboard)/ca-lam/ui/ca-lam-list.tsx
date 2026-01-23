@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type WorkShiftItem = {
@@ -53,6 +54,10 @@ export function CaLamList() {
   const [items, setItems] = useState<WorkShiftItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const [policyCount, setPolicyCount] = useState("0");
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policySaving, setPolicySaving] = useState(false);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -72,6 +77,57 @@ export function CaLamList() {
   useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+
+  const fetchPolicy = useCallback(async () => {
+    setPolicyLoading(true);
+    try {
+      const res = await fetch("/api/ca-lam/doi-ca-policy");
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { message?: string };
+        throw new Error(data?.message ?? "Không tải được cấu hình đổi ca.");
+      }
+      const data = (await res.json()) as { totalShiftChangeCount?: number };
+      setPolicyCount(String(data.totalShiftChangeCount ?? 0));
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Không tải được cấu hình đổi ca.");
+    } finally {
+      setPolicyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!policyOpen) return;
+    fetchPolicy();
+  }, [policyOpen, fetchPolicy]);
+
+  async function handleSavePolicy() {
+    const value = Number(policyCount);
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error("Số lượt đổi ca không hợp lệ.");
+      return;
+    }
+    setPolicySaving(true);
+    try {
+      const res = await fetch("/api/ca-lam/doi-ca-policy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          totalShiftChangeCount: value,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { message?: string };
+        throw new Error(data?.message ?? "Không thể lưu cấu hình đổi ca.");
+      }
+      toast.success("Đã cập nhật số lượt đổi ca trong tháng.");
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Không thể lưu cấu hình đổi ca.");
+    } finally {
+      setPolicySaving(false);
+    }
+  }
 
   async function handleStatusChange(item: WorkShiftItem, nextStatus: WorkShiftItem["status"]) {
     if (item.employeeCount && item.employeeCount > 0) {
@@ -118,9 +174,61 @@ export function CaLamList() {
         <p className="text-sm text-muted-foreground">
           Tổng cộng: <span className="font-semibold text-slate-900">{items.length}</span> ca làm.
         </p>
-        <Button asChild className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto">
-          <Link href="/ca-lam/tao-moi">Tạo ca làm mới</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Dialog open={policyOpen} onOpenChange={setPolicyOpen}>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none border-slate-300 text-slate-700 w-full sm:w-auto"
+              onClick={() => setPolicyOpen(true)}
+            >
+              Lượt đổi ca/tháng
+            </Button>
+            <DialogContent className="rounded-none">
+              <DialogHeader>
+                <DialogTitle>Điều chỉnh lượt đổi ca</DialogTitle>
+                <DialogDescription>
+                  Thiết lập tổng số lượt đổi ca áp dụng cho toàn bộ nhân viên theo từng tháng.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 text-sm text-slate-700">
+                <label className="flex flex-col gap-2">
+                  Tổng lượt đổi ca
+                  <input
+                    type="number"
+                    min={0}
+                    value={policyCount}
+                    onChange={(e) => setPolicyCount(e.target.value)}
+                    className="rounded-none border border-slate-300 bg-white px-3 py-2 text-sm"
+                  />
+                </label>
+                {policyLoading && <div className="text-xs text-slate-500">Đang tải cấu hình...</div>}
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-none"
+                    onClick={() => setPolicyOpen(false)}
+                    disabled={policySaving}
+                  >
+                    Đóng
+                  </Button>
+                  <Button
+                    type="button"
+                    className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
+                    onClick={handleSavePolicy}
+                    disabled={policySaving || policyLoading}
+                  >
+                    {policySaving ? "Đang lưu..." : "Lưu"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button asChild className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600 w-full sm:w-auto">
+            <Link href="/ca-lam/tao-moi">Tạo ca làm mới</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="border bg-white overflow-x-auto rounded-lg">

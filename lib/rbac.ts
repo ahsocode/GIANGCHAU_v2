@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Users,
   UserRound,
+  MessageSquare,
 } from "lucide-react";
 
 export type RoleKey = "ADMIN" | "DIRECTOR" | "STAFF" | "EMPLOYEE";
@@ -22,6 +23,7 @@ const base: MenuItem[] = [
   { key: "tong-quan", label: "Tổng quan", href: "/tong-quan", icon: LayoutDashboard },
   { key: "ca-lam", label: "Ca làm", href: "/ca-lam", icon: CalendarRange },
   { key: "ngay-nghi", label: "Ngày nghỉ", href: "/ngay-nghi/loai", icon: CalendarDays },
+  { key: "xu-ly-yeu-cau", label: "Xử lý yêu cầu", href: "/xu-ly-yeu-cau", icon: MessageSquare },
 ];
 
 const nhanSu: MenuItem[] = [
