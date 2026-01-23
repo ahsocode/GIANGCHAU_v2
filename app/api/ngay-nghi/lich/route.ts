@@ -55,6 +55,7 @@ export async function GET(request: Request) {
   const employeeIdsParam = searchParams.get("employeeIds")?.trim();
   const departmentId = searchParams.get("departmentId")?.trim();
   const positionId = searchParams.get("positionId")?.trim();
+  const scopeParam = searchParams.get("scope")?.trim();
 
   if (!from || !to) {
     return NextResponse.json({ items: [] });
@@ -67,6 +68,27 @@ export async function GET(request: Request) {
   }
 
   const dateFilter = { date: { gte: start, lte: end } };
+  if (scopeParam === "ALL") {
+    const holidays = await prisma.holiday.findMany({
+      where: { ...dateFilter, scope: "ALL" as const },
+      select: {
+        date: true,
+        scope: true,
+        holidayType: { select: { name: true, color: true, payPolicy: true } },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    const items = holidays.map((holiday) => ({
+      date: holiday.date.toISOString().slice(0, 10),
+      name: holiday.holidayType.name,
+      color: holiday.holidayType.color,
+      payPolicy: holiday.holidayType.payPolicy,
+      scope: holiday.scope,
+    }));
+
+    return NextResponse.json({ items });
+  }
 
   if (employeeIdsParam || departmentId || positionId) {
     let employees = [] as Array<{ id: string; departmentId: string | null; positionId: string | null }>;

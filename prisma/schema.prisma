@@ -121,6 +121,35 @@ enum LeaveStatus {
   CANCELLED
 }
 
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ProfileUpdateField {
+  ACCOUNT_EMAIL
+  PHONE
+  CITIZEN_ID
+  SOCIAL_INSURANCE
+}
+
+enum RequestType {
+  SHIFT_CHANGE
+  PROFILE_UPDATE
+  LEAVE
+  ATTENDANCE_ADJUSTMENT
+}
+
+enum AttendanceAdjustmentField {
+  CHECK_IN_TIME
+  CHECK_OUT_TIME
+  CHECK_IN_STATUS
+  CHECK_OUT_STATUS
+}
+
 enum EmploymentType {
   CT // Chính thức
   TV // Thời vụ
@@ -182,6 +211,7 @@ model Account {
 
   attendanceCreated AttendanceRecord[] @relation("attendance_created_by")
   attendanceUpdated AttendanceRecord[] @relation("attendance_updated_by")
+  attendanceAdjusted AttendanceRecord[] @relation("attendance_adjusted_by")
 
   eventsCreated AttendanceEvent[] @relation("event_created_by")
 
@@ -194,6 +224,8 @@ model Account {
   leaveUpdated  LeaveRequest[] @relation("leave_updated_by")
 
   importsCreated FileImport[] @relation("import_created_by")
+
+  requestActions RequestActionLog[] @relation("request_action_handled_by")
 }
 
 ////////////////////////////////////////////////////////////
@@ -258,9 +290,13 @@ model Employee {
   schedules        WorkSchedule[]
   attendance       AttendanceRecord[]
   attendanceEvents AttendanceEvent[]
+  benefit          EmployeeBenefit?
 
   overtimeRequests OvertimeRequest[] @relation("ot_employee")
   leaveRequests    LeaveRequest[]    @relation("leave_employee")
+  shiftChangeRequests ShiftChangeRequest[]
+  profileUpdateRequests ProfileUpdateRequest[]
+  attendanceAdjustmentRequests AttendanceAdjustmentRequest[]
 
   managesDepartments Department[] @relation("dept_manager")
   holidays          Holiday[]
@@ -292,6 +328,8 @@ model WorkShift {
   updatedAt DateTime @updatedAt
 
   schedules WorkSchedule[]
+  shiftChangeCurrentRequests ShiftChangeRequest[] @relation("shift_change_current")
+  shiftChangeDesiredRequests ShiftChangeRequest[] @relation("shift_change_desired")
 }
 
 model HolidayType {
@@ -301,6 +339,7 @@ model HolidayType {
   payPolicy HolidayPayPolicy @default(PAID)
 
   holidays Holiday[]
+  leaveRequests LeaveRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -417,6 +456,12 @@ model AttendanceRecord {
   source AttendanceSource @default(WEB)
   note   String?
 
+  isAdjusted Boolean @default(false)
+  adjustedAt DateTime?
+  adjustedById String?
+  adjustedBy   Account? @relation("attendance_adjusted_by", fields: [adjustedById], references: [id])
+  adjustNote String?
+
   createdById String?
   createdBy   Account? @relation("attendance_created_by", fields: [createdById], references: [id])
 
@@ -511,6 +556,8 @@ model LeaveRequest {
   endDate   DateTime
   reason    String?
   status    LeaveStatus @default(DRAFT)
+  holidayTypeId String?
+  holidayType   HolidayType? @relation(fields: [holidayTypeId], references: [id])
 
   submittedAt  DateTime?
   approvedAt   DateTime?
@@ -528,6 +575,124 @@ model LeaveRequest {
 
   @@index([employeeId, startDate])
   @@index([status])
+}
+
+////////////////////////////////////////////////////////////
+// EMPLOYEE REQUESTS
+////////////////////////////////////////////////////////////
+
+model ShiftChangeRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  date           DateTime
+  currentShiftId String
+  currentShift   WorkShift @relation("shift_change_current", fields: [currentShiftId], references: [id])
+  desiredShiftId String
+  desiredShift   WorkShift @relation("shift_change_desired", fields: [desiredShiftId], references: [id])
+  reason         String?
+
+  status      RequestStatus @default(SUBMITTED)
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, date])
+  @@index([status])
+}
+
+model ProfileUpdateRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  field    ProfileUpdateField
+  newValue String
+  previousValue String?
+  reason   String?
+
+  status      RequestStatus @default(SUBMITTED)
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, createdAt])
+  @@index([status])
+}
+
+model AttendanceAdjustmentRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  date     DateTime
+  field    AttendanceAdjustmentField
+  newValue String
+  reason   String?
+
+  status      RequestStatus @default(SUBMITTED)
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, date])
+  @@index([status])
+}
+
+model RequestActionLog {
+  id String @id @default(uuid())
+
+  requestType RequestType
+  requestId   String
+  status      RequestStatus
+  note        String?
+
+  handledById String?
+  handledBy   Account? @relation("request_action_handled_by", fields: [handledById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([requestType, requestId])
+  @@index([handledById])
+}
+
+////////////////////////////////////////////////////////////
+// EMPLOYEE BENEFIT
+////////////////////////////////////////////////////////////
+
+model EmployeeBenefit {
+  id String @id @default(uuid())
+
+  employeeId String @unique
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  totalAnnualLeaveDays Int @default(0)
+  usedAnnualLeaveDays  Int @default(0)
+  usedShiftChangeCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+////////////////////////////////////////////////////////////
+// SHIFT CHANGE POLICY
+////////////////////////////////////////////////////////////
+
+model ShiftChangePolicy {
+  id String @id @default(uuid())
+
+  key String @unique @default("GLOBAL")
+  totalShiftChangeCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 ////////////////////////////////////////////////////////////

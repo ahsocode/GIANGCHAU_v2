@@ -52,6 +52,7 @@ export async function GET(request: Request) {
       plannedName: true,
       plannedStart: true,
       plannedEnd: true,
+      workShiftId: true,
     },
     orderBy: { date: "asc" },
   });
@@ -61,6 +62,7 @@ export async function GET(request: Request) {
     name: item.plannedName,
     startTime: item.plannedStart,
     endTime: item.plannedEnd,
+    workShiftId: item.workShiftId,
   }));
 
   return NextResponse.json({ items });
