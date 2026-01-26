@@ -129,16 +129,6 @@ export function ChamCongClient() {
     fetchState();
   }, []);
 
-  const clockLabel = useMemo(() => {
-    return new Intl.DateTimeFormat("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(now);
-  }, [now]);
   const clockHours = useMemo(() => now.getHours().toString().padStart(2, "0"), [now]);
   const clockMinutes = useMemo(() => now.getMinutes().toString().padStart(2, "0"), [now]);
   const clockSeconds = useMemo(() => now.getSeconds().toString().padStart(2, "0"), [now]);
