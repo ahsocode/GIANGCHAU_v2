@@ -101,16 +101,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, received: logs.length, inserted: 0, skipped: logs.length });
     }
 
-    const result = await prisma.attendanceMachineEvent.createMany({
-      data,
-      skipDuplicates: true,
-    });
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+      const chunk = data.slice(i, i + CHUNK_SIZE);
+      await prisma.$transaction(
+        chunk.map((item) =>
+          prisma.attendanceMachineEvent.upsert({
+            where: { dedupeKey: item.dedupeKey },
+            create: item,
+            update: item,
+          })
+        )
+      );
+    }
 
     return NextResponse.json({
       ok: true,
       received: logs.length,
-      inserted: result.count,
-      skipped: logs.length - result.count,
+      inserted: data.length,
+      skipped: logs.length - data.length,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

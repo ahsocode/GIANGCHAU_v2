@@ -8,6 +8,7 @@ import {
   Users,
   UserRound,
   MessageSquare,
+  Clock4,
 } from "lucide-react";
 
 export type RoleKey = "ADMIN" | "DIRECTOR" | "STAFF" | "EMPLOYEE";
@@ -26,6 +27,10 @@ const base: MenuItem[] = [
   { key: "xu-ly-yeu-cau", label: "Xử lý yêu cầu", href: "/xu-ly-yeu-cau", icon: MessageSquare },
 ];
 
+const chamCongQuanLy: MenuItem[] = [
+  { key: "quan-li-cham-cong", label: "Quản lý chấm công", href: "/quan-li-cham-cong", icon: Clock4 },
+];
+
 const nhanSu: MenuItem[] = [
   { key: "bo-phan", label: "Bộ phận", href: "/bo-phan", icon: Building2 },
   { key: "chuc-vu", label: "Chức vụ", href: "/chuc-vu", icon: BriefcaseBusiness },
@@ -34,8 +39,8 @@ const nhanSu: MenuItem[] = [
 ];
 
 export function getMenuByRole(role: RoleKey): MenuItem[] {
-  if (role === "ADMIN") return [...base, ...nhanSu];
-  if (role === "DIRECTOR") return [...base, ...nhanSu];
+  if (role === "ADMIN") return [...base, ...chamCongQuanLy, ...nhanSu];
+  if (role === "DIRECTOR") return [...base, ...chamCongQuanLy, ...nhanSu];
   if (role === "STAFF") return [...base, ...nhanSu];
   // Nhân viên chỉ xem cụm cá nhân, không hiển thị menu chung
   return [];
