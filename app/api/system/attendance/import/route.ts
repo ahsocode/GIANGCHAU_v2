@@ -30,19 +30,7 @@ function normalizeRaw(value: unknown): Prisma.InputJsonValue | Prisma.NullableJs
 
 export async function POST(req: Request) {
   try {
-    const authDisabled = process.env.ATTENDANCE_IMPORT_AUTH_DISABLED === "1";
-    const apiKey = process.env.ATTENDANCE_API_KEY;
-    if (!authDisabled && apiKey) {
-      const header = req.headers.get("x-api-key");
-      console.log("[attendance-import] api key check", {
-        received: header ?? null,
-        expected: apiKey,
-        ok: header === apiKey,
-      });
-      if (header !== apiKey) {
-        return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-      }
-    }
+    // Auth disabled for this endpoint by requirement.
 
     const body = (await req.json()) as {
       deviceCode?: string;
