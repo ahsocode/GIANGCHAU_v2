@@ -33,6 +33,11 @@ export async function POST(req: Request) {
     const apiKey = process.env.ATTENDANCE_API_KEY;
     if (apiKey) {
       const header = req.headers.get("x-api-key");
+      console.log("[attendance-import] api key check", {
+        received: header ?? null,
+        expected: apiKey,
+        ok: header === apiKey,
+      });
       if (header !== apiKey) {
         return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
       }
