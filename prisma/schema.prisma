@@ -290,6 +290,7 @@ model Employee {
   schedules        WorkSchedule[]
   attendance       AttendanceRecord[]
   attendanceEvents AttendanceEvent[]
+  deviceUserMappings AttendanceDeviceUserMapping[]
   benefit          EmployeeBenefit?
 
   overtimeRequests OvertimeRequest[] @relation("ot_employee")
@@ -503,6 +504,56 @@ model AttendanceEvent {
   @@unique([employeeId, date, type])
   @@index([employeeId, date])
   @@index([occurredAt])
+}
+
+model AttendanceMachineEvent {
+  id String @id @default(uuid())
+
+  deviceCode String
+  machineId  Int?
+  deviceIp   String?
+
+  deviceUserCode String
+  userSn         Int?
+
+  epochMs    BigInt
+  occurredAt DateTime
+
+  verifyType String?
+  inOut      String?
+
+  dedupeKey String @unique
+  raw       Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([deviceCode, deviceUserCode, epochMs])
+  @@index([occurredAt])
+}
+
+model AttendanceDeviceUserMapping {
+  id String @id @default(uuid())
+
+  deviceCode     String
+  deviceUserCode String
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  note     String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([deviceCode, deviceUserCode])
+  @@index([employeeId])
+}
+
+model SystemState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 ////////////////////////////////////////////////////////////

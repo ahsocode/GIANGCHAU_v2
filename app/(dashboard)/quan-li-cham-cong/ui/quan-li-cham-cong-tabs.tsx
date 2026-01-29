@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { href: "/cham-cong", label: "Chấm công" },
-  { href: "/cham-cong/lich-su", label: "Lịch sử chấm công" },
-  { href: "/cham-cong/may-cham-cong", label: "Dữ liệu máy chấm công" },
+  { href: "/quan-li-cham-cong", label: "Dữ liệu chấm công" },
+  { href: "/quan-li-cham-cong/raw-event", label: "Dữ liệu chấm công chưa qua xử lý" },
+  { href: "/quan-li-cham-cong/device-users", label: "Nhân viên trong máy chấm công" },
 ];
 
-export default function ChamCongTabs() {
+export default function QuanLiChamCongTabs() {
   const pathname = usePathname();
 
   return (

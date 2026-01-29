@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const positionId = searchParams.get("positionId") || undefined;
   const employmentTypeParam = searchParams.get("employmentType");
   const withoutAccount = searchParams.get("withoutAccount") === "true";
+  const withoutDeviceMapping = searchParams.get("withoutDeviceMapping") === "true";
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
   const pageSize = Math.max(1, Number(searchParams.get("pageSize") ?? "50") || 50);
 
@@ -22,6 +23,9 @@ export async function GET(request: Request) {
       { code: { contains: q, mode: "insensitive" as const } },
       { fullName: { contains: q, mode: "insensitive" as const } },
       { phone: { contains: q, mode: "insensitive" as const } },
+      { position: { name: { contains: q, mode: "insensitive" as const } } },
+      { position: { code: { contains: q, mode: "insensitive" as const } } },
+      { department: { name: { contains: q, mode: "insensitive" as const } } },
     ];
   }
   if (departmentId) where.departmentId = departmentId;
@@ -31,6 +35,9 @@ export async function GET(request: Request) {
   }
   if (withoutAccount) {
     where.account = { is: null };
+  }
+  if (withoutDeviceMapping) {
+    where.deviceUserMappings = { none: { isActive: true } };
   }
 
   let orderBy: Prisma.EmployeeOrderByWithRelationInput = { createdAt: order };
