@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { combineDateTimeInTimeZone, getDateOnlyInTimeZone } from "@/lib/timezone";
 
 type RangePayload = {
   employeeId?: string;
@@ -27,20 +28,9 @@ function getDatesInRange(start: Date, end: Date) {
   return days;
 }
 
-function toLocalDateFromUtc(value: Date) {
-  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-}
-
-function combineDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const next = toLocalDateFromUtc(date);
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  return next;
-}
-
 function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
-  const start = combineDateTime(date, startTime);
-  let end = combineDateTime(date, endTime);
+  const start = combineDateTimeInTimeZone(date, startTime);
+  let end = combineDateTimeInTimeZone(date, endTime);
   if (end.getTime() <= start.getTime()) {
     end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
   }
@@ -86,7 +76,7 @@ export async function POST(request: Request) {
     weekdays.length > 0 ? days.filter((d) => weekdays.includes(d.getUTCDay())) : days;
 
   const now = new Date();
-  const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const todayUtc = getDateOnlyInTimeZone(now);
 
   if (filteredDays.some((day) => day.getTime() < todayUtc.getTime())) {
     return NextResponse.json(

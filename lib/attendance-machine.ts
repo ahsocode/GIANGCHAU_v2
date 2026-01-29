@@ -1,42 +1,16 @@
 import { AttendanceCheckInStatus, AttendanceCheckOutStatus } from "@prisma/client";
 import { prisma } from "./prisma";
+import { APP_TIME_ZONE, combineDateTimeInTimeZone, getDateOnlyInTimeZone } from "./timezone";
 
 const STATE_KEY = "attendanceMachine:lastProcessedEpochMs";
-const TIME_ZONE = "Asia/Ho_Chi_Minh";
 const DEFAULT_BATCH_SIZE = 5000;
 const CHECKIN_BUFFER_MINUTES = 60;
 const AUTO_CHECKOUT_AFTER_HOURS = 8;
 const NEXT_SHIFT_BUFFER_HOURS = 2;
 
-function getDateOnlyInTimeZone(value: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(value);
-
-  const year = Number(parts.find((p) => p.type === "year")?.value ?? "0");
-  const month = Number(parts.find((p) => p.type === "month")?.value ?? "0");
-  const day = Number(parts.find((p) => p.type === "day")?.value ?? "0");
-
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function getLocalDateFromUtcDate(value: Date) {
-  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-}
-
-function combineDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const next = getLocalDateFromUtcDate(date);
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  return next;
-}
-
 function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
-  const start = combineDateTime(date, startTime);
-  let end = combineDateTime(date, endTime);
+  const start = combineDateTimeInTimeZone(date, startTime);
+  let end = combineDateTimeInTimeZone(date, endTime);
   if (end.getTime() <= start.getTime()) {
     end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
   }
@@ -149,7 +123,7 @@ async function loadScheduleMap(
     const employeeId = mappingMap.get(`${event.deviceCode}||${event.deviceUserCode}`);
     if (!employeeId) continue;
     employeeIds.add(employeeId);
-    const dateOnly = getDateOnlyInTimeZone(event.occurredAt, TIME_ZONE);
+    const dateOnly = getDateOnlyInTimeZone(event.occurredAt, APP_TIME_ZONE);
     const prevDateOnly = new Date(dateOnly.getTime() - 24 * 60 * 60 * 1000);
     const nextDateOnly = new Date(dateOnly.getTime() + 24 * 60 * 60 * 1000);
     dateSet.add(dateOnly.toISOString());
@@ -257,7 +231,7 @@ function buildGroups(
       continue;
     }
 
-    const dateOnly = getDateOnlyInTimeZone(event.occurredAt, TIME_ZONE);
+    const dateOnly = getDateOnlyInTimeZone(event.occurredAt, APP_TIME_ZONE);
     const prevDateOnly = new Date(dateOnly.getTime() - 24 * 60 * 60 * 1000);
     let assignedDate = dateOnly;
 
@@ -489,7 +463,7 @@ async function applyGroups(
     const nextDateOnly = new Date(schedule.date.getTime() + 24 * 60 * 60 * 1000);
     const nextSchedule = scheduleMap.get(`${employeeId}||${nextDateOnly.toISOString()}`);
     const nextShiftStart = nextSchedule
-      ? combineDateTime(nextSchedule.date, nextSchedule.plannedStart)
+      ? combineDateTimeInTimeZone(nextSchedule.date, nextSchedule.plannedStart)
       : null;
     const cutoffByNextShift = nextShiftStart
       ? new Date(nextShiftStart.getTime() - NEXT_SHIFT_BUFFER_HOURS * 60 * 60 * 1000)
