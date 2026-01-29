@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { href: "/quan-li-cham-cong", label: "Dữ liệu chấm công" },
   { href: "/quan-li-cham-cong/raw-event", label: "Dữ liệu chấm công chưa qua xử lý" },
+  { href: "/quan-li-cham-cong/device-users", label: "Nhân viên trong máy chấm công" },
 ];
 
 export default function QuanLiChamCongTabs() {

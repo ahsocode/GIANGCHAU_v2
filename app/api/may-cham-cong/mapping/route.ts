@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { RoleKey } from "@/lib/rbac";
+import { processAttendanceMachineEventsForPairs } from "@/lib/attendance-machine";
 
 async function requirePrivileged() {
   const session = await auth();
@@ -82,6 +83,14 @@ export async function POST(request: Request) {
     include: {
       employee: { select: { id: true, code: true, fullName: true } },
     },
+  });
+
+  const now = new Date();
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  await processAttendanceMachineEventsForPairs({
+    pairs: [{ deviceCode, deviceUserCode }],
+    from: twoDaysAgo,
+    to: now,
   });
 
   return NextResponse.json({ ok: true, item: result });

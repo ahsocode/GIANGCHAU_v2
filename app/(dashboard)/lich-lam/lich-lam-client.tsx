@@ -55,6 +55,7 @@ function endOfMonth(date: Date) {
 
 function addMonths(date: Date, months: number) {
   const next = new Date(date);
+  next.setDate(1);
   next.setMonth(next.getMonth() + months);
   return next;
 }

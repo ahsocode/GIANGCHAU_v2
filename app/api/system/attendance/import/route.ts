@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { processAttendanceMachineEvents, processAttendanceMachineEventsForPairs } from "@/lib/attendance-machine";
 
 type IncomingLog = {
   deviceCode?: string;
@@ -109,11 +110,30 @@ export async function POST(req: Request) {
       );
     }
 
+    const pairs = Array.from(
+      new Set(data.map((item) => `${item.deviceCode}||${item.deviceUserCode}`))
+    ).map((key) => {
+      const [deviceCode, deviceUserCode] = key.split("||");
+      return { deviceCode, deviceUserCode };
+    });
+
+    const minOccurredAt = data.reduce((min, item) => (item.occurredAt < min ? item.occurredAt : min), data[0].occurredAt);
+    const maxOccurredAt = data.reduce((max, item) => (item.occurredAt > max ? item.occurredAt : max), data[0].occurredAt);
+
+    const processResult = await processAttendanceMachineEventsForPairs({
+      pairs,
+      from: minOccurredAt,
+      to: maxOccurredAt,
+    });
+
+    await processAttendanceMachineEvents({ batchSize: 2000 });
+
     return NextResponse.json({
       ok: true,
       received: logs.length,
       inserted: data.length,
       skipped: logs.length - data.length,
+      processed: processResult,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

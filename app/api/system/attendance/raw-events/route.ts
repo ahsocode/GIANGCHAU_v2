@@ -88,11 +88,49 @@ export async function GET(request: Request) {
       },
     });
 
+    const baseRows = rows.length > take ? rows.slice(0, take) : rows;
+    const pairs = Array.from(
+      new Set(baseRows.map((row) => `${row.deviceCode}||${row.deviceUserCode}`))
+    ).map((key) => {
+      const [code, user] = key.split("||");
+      return { deviceCode: code, deviceUserCode: user };
+    });
+
+    const mappings = pairs.length
+      ? await prisma.attendanceDeviceUserMapping.findMany({
+          where: {
+            OR: pairs.map((pair) => ({
+              deviceCode: pair.deviceCode,
+              deviceUserCode: pair.deviceUserCode,
+            })),
+          },
+          include: {
+            employee: { select: { id: true, code: true, fullName: true } },
+          },
+        })
+      : [];
+
+    const mappingMap = new Map<string, (typeof mappings)[number]>();
+    for (const mapping of mappings) {
+      mappingMap.set(`${mapping.deviceCode}||${mapping.deviceUserCode}`, mapping);
+    }
+
     const hasMore = rows.length > take;
-    const items = (hasMore ? rows.slice(0, take) : rows).map((row) => ({
-      ...row,
-      epochMs: row.epochMs.toString(),
-    }));
+    const items = baseRows.map((row) => {
+      const mapping = mappingMap.get(`${row.deviceCode}||${row.deviceUserCode}`) ?? null;
+      return {
+        ...row,
+        epochMs: row.epochMs.toString(),
+        employee: mapping
+          ? {
+              id: mapping.employeeId,
+              code: mapping.employee?.code ?? null,
+              fullName: mapping.employee?.fullName ?? null,
+              isActive: mapping.isActive,
+            }
+          : null,
+      };
+    });
     const nextCursor = hasMore ? rows[take].id : null;
 
     return NextResponse.json({ ok: true, items, nextCursor });

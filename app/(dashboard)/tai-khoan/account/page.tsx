@@ -18,7 +18,7 @@ type AccountItem = {
   employeeName: string | null;
 };
 
-type EmployeeOption = { id: string; name: string; code: string };
+type EmployeeOption = { id: string; name: string; code: string; hasAccount: boolean; accountEmail?: string | null };
 type EmployeeApiItem = {
   id: string;
   fullName: string;
@@ -39,6 +39,9 @@ export default function TaiKhoanPage() {
   const [assignEmployeeId, setAssignEmployeeId] = useState("");
   const [assignAccountId, setAssignAccountId] = useState("");
   const [assignMode, setAssignMode] = useState<"create" | "link">("create");
+  const [assignEmployeeQuery, setAssignEmployeeQuery] = useState("");
+  const [assignEmployeeQueryDebounced, setAssignEmployeeQueryDebounced] = useState("");
+  const [assignEmployeeLoading, setAssignEmployeeLoading] = useState(false);
   const [savingAssign, setSavingAssign] = useState(false);
   const [unassigning, setUnassigning] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -64,6 +67,11 @@ export default function TaiKhoanPage() {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setAssignEmployeeQueryDebounced(assignEmployeeQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [assignEmployeeQuery]);
 
   const openEdit = (acc: AccountItem) => {
     setSelectedAcc(acc);
@@ -113,28 +121,37 @@ export default function TaiKhoanPage() {
     });
   }, [debouncedQ, sortField, sortOrder, filterRole, filterStatus]);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (query?: string) => {
+    setAssignEmployeeLoading(true);
     try {
-      const res = await fetch("/api/nhan-vien?order=desc&sort=fullName");
+      const params = new URLSearchParams();
+      params.set("order", "asc");
+      params.set("sort", "fullName");
+      params.set("pageSize", "50");
+      if (query) params.set("q", query);
+      const res = await fetch(`/api/nhan-vien?${params.toString()}`);
       if (!res.ok) return;
       const data = (await res.json()) as { items?: EmployeeApiItem[] };
-      const opts = (data.items ?? [])
-        .filter((e) => !e.accountEmail) // chỉ nhân viên chưa có tài khoản
-        .map((e) => ({
-          id: e.id,
-          name: e.fullName,
-          code: e.code,
-          personalEmail: e.personalEmail,
-        }));
+      const opts = (data.items ?? []).map((e) => ({
+        id: e.id,
+        name: e.fullName,
+        code: e.code,
+        personalEmail: e.personalEmail,
+        hasAccount: !!e.accountEmail,
+        accountEmail: e.accountEmail ?? null,
+      }));
       setEmployees(opts);
     } catch (error) {
       console.error(error);
+    } finally {
+      setAssignEmployeeLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    if (!assignOpen) return;
+    fetchEmployees(assignEmployeeQueryDebounced || undefined);
+  }, [assignOpen, assignEmployeeQueryDebounced]);
 
   const refreshAccounts = () =>
     fetchAccounts({
@@ -534,28 +551,57 @@ export default function TaiKhoanPage() {
               </label>
             </div>
             <div>
-              <label className="text-sm text-slate-600">Nhân viên</label>
-              <select
-                value={assignEmployeeId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setAssignEmployeeId(val);
-                  if (assignMode === "create") {
-                    const selected = employees.find((emp) => emp.id === val);
-                    if (selected?.personalEmail) {
-                      setAssignEmail(selected.personalEmail);
-                    }
-                  }
-                }}
-                className="w-full rounded-none border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">-- Chọn nhân viên --</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} ({e.code})
-                  </option>
-                ))}
-              </select>
+              <label className="text-sm text-slate-600">Tìm nhân viên</label>
+              <div className="flex gap-2">
+                <Input
+                  value={assignEmployeeQuery}
+                  onChange={(e) => setAssignEmployeeQuery(e.target.value)}
+                  placeholder="Nhập tên hoặc mã nhân viên"
+                  className="rounded-none"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={() => fetchEmployees(assignEmployeeQuery.trim() || undefined)}
+                  disabled={assignEmployeeLoading}
+                >
+                  {assignEmployeeLoading ? "Đang tìm..." : "Tìm"}
+                </Button>
+              </div>
+              <div className="mt-2 max-h-56 overflow-y-auto rounded-none border border-slate-300 bg-white text-sm">
+                {assignEmployeeLoading ? (
+                  <div className="px-3 py-2 text-slate-500">Đang tải...</div>
+                ) : employees.length === 0 ? (
+                  <div className="px-3 py-2 text-slate-500">Không có nhân viên phù hợp.</div>
+                ) : (
+                  employees.map((e) => (
+                    <button
+                      key={e.id}
+                      type="button"
+                      className="flex w-full items-center justify-between border-b border-slate-200 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => {
+                        setAssignEmployeeId(e.id);
+                        if (assignMode === "create" && e.personalEmail) {
+                          setAssignEmail(e.personalEmail);
+                        }
+                      }}
+                      disabled={e.hasAccount}
+                    >
+                      <div>
+                        <div className="font-medium">{e.name}</div>
+                        <div className="text-xs text-slate-500">{e.code}</div>
+                      </div>
+                      {assignEmployeeId === e.id ? (
+                        <span className="text-xs text-emerald-600">Đã chọn</span>
+                      ) : e.hasAccount ? (
+                        <span className="text-xs text-slate-400">Đã có tài khoản</span>
+                      ) : null}
+                    </button>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Nhân viên đã có tài khoản sẽ bị khoá chọn.</p>
             </div>
             {assignMode === "create" ? (
               <div>

@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FlipClock } from "@/components/ui/flip-clock";
-import { toast } from "sonner";
 
 type ScheduleInfo = {
   id: string;
@@ -28,6 +25,13 @@ type AttendanceInfo = {
   overtimeMinutes?: number;
   checkInStatus?: "PENDING" | "MISSED" | "ON_TIME" | "LATE" | null;
   checkOutStatus?: "PENDING" | "MISSED" | "ON_TIME" | "EARLY" | "OVERTIME" | null;
+  logIds?: {
+    recordId: string | null;
+    checkInEventId: string | null;
+    checkOutEventId: string | null;
+    checkInMachineEventId: string | null;
+    checkOutMachineEventId: string | null;
+  } | null;
 };
 
 type AttendanceState = {
@@ -91,9 +95,7 @@ function mapCheckOutStatus(value?: string | null) {
 export function ChamCongClient() {
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [data, setData] = useState<AttendanceState | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -117,9 +119,13 @@ export function ChamCongClient() {
       if (!res.ok) throw new Error("Không tải được dữ liệu chấm công.");
       const json = (await res.json()) as AttendanceState;
       setData(json);
+      if (json?.record?.logIds) {
+        console.log("[cham-cong] logIds", json.record.logIds);
+      } else {
+        console.log("[cham-cong] logIds", null);
+      }
     } catch (error: unknown) {
       console.error(error);
-      toast.error("Không tải được dữ liệu chấm công.");
     } finally {
       setLoading(false);
     }
@@ -142,33 +148,6 @@ export function ChamCongClient() {
     [now]
   );
 
-  async function handleAction(action: "checkin" | "checkout") {
-    try {
-      setSubmitting(true);
-      const res = await fetch("/api/cham-cong", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      let payload: { message?: string } = {};
-      const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        payload = (await res.json()) as { message?: string };
-      }
-      if (!res.ok) {
-        toast.error(payload.message ?? "Không thể chấm công.");
-        return;
-      }
-      toast.success(action === "checkin" ? "Đã check-in." : "Đã check-out.");
-      await fetchState();
-    } catch (error: unknown) {
-      console.error(error);
-      toast.error("Không thể chấm công.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   const record = data?.record;
   const summary = data?.summary;
   const plannedMinutes = data?.schedule
@@ -176,27 +155,11 @@ export function ChamCongClient() {
     : 0;
   const actualMinutes = summary?.actualMinutes ?? (record?.checkOutAt ? record.workMinutes ?? 0 : 0);
   const overtimeMinutes = summary?.overtimeMinutes ?? (record?.checkOutAt ? record.overtimeMinutes ?? 0 : 0);
-  const checkoutStatusPreview = useMemo(() => {
-    if (!data?.schedule) return "—";
-    const [y, m, d] = data.schedule.date.split("-").map(Number);
-    const [endH, endM] = data.schedule.endTime.split(":").map(Number);
-    const [startH, startM] = data.schedule.startTime.split(":").map(Number);
-    const start = new Date(y, (m ?? 1) - 1, d ?? 1, startH || 0, startM || 0, 0, 0);
-    let end = new Date(y, (m ?? 1) - 1, d ?? 1, endH || 0, endM || 0, 0, 0);
-    if (end.getTime() <= start.getTime()) {
-      end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
-    }
-    const earlyBoundary = new Date(end.getTime() - (data.schedule.earlyGraceMinutes ?? 0) * 60000);
-    if (now.getTime() > end.getTime()) return "Tăng ca";
-    if (now.getTime() < earlyBoundary.getTime()) return "Về sớm";
-    return "Đúng giờ";
-  }, [data?.schedule, now]);
-
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold">Chấm công</h2>
-        <p className="text-sm text-muted-foreground">Check-in và check-out theo ca làm hôm nay.</p>
+        <p className="text-sm text-muted-foreground">Tự động nhận log từ máy chấm công.</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -265,37 +228,7 @@ export function ChamCongClient() {
             </div>
           </div>
 
-          {data?.nextAllowedCheckInAt && !record?.checkInAt && (
-            <div className="text-xs text-slate-500">
-              Bạn có thể check-in từ: {formatDateTime(data.nextAllowedCheckInAt)}
-            </div>
-          )}
-
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          {data?.allowCheckOut && (
-            <Button
-              className="w-full rounded-none bg-emerald-500 text-white hover:bg-emerald-600 sm:w-auto"
-              onClick={() => setConfirmOpen(true)}
-              disabled={submitting}
-            >
-              Check-out
-            </Button>
-          )}
-          {data?.allowCheckIn && (
-            <Button
-              className="w-full rounded-none bg-emerald-500 text-white hover:bg-emerald-600 sm:w-auto"
-              onClick={() => handleAction("checkin")}
-              disabled={submitting}
-            >
-              Check-in
-            </Button>
-          )}
-          {!data?.allowCheckIn && !data?.allowCheckOut && (
-            <Button className="w-full rounded-none sm:w-auto" variant="outline" disabled>
-              {record?.checkOutAt ? "Đã hoàn tất ca" : "Chưa đến giờ check-in"}
-            </Button>
-          )}
-          </div>
+          <div className="text-xs text-slate-500">Dữ liệu tự cập nhật từ máy chấm công.</div>
         </div>
 
         <div className="rounded-lg border bg-white p-4 sm:p-5 space-y-3">
@@ -337,39 +270,6 @@ export function ChamCongClient() {
         </div>
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="rounded-none">
-          <DialogHeader>
-            <DialogTitle>Xác nhận check-out</DialogTitle>
-            <DialogDescription>Kiểm tra lại thời gian check-out trước khi xác nhận.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 text-sm text-slate-700">
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <div className="text-slate-500">Thời gian check-out</div>
-              <div className="font-semibold text-slate-900">{formatDateTime(now.toISOString())}</div>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <div className="text-slate-500">Trạng thái check-out</div>
-              <div className="font-semibold text-slate-900">{checkoutStatusPreview}</div>
-            </div>
-          </div>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" className="rounded-none" onClick={() => setConfirmOpen(false)}>
-              Hủy
-            </Button>
-            <Button
-              className="rounded-none bg-emerald-500 text-white hover:bg-emerald-600"
-              onClick={async () => {
-                await handleAction("checkout");
-                setConfirmOpen(false);
-              }}
-              disabled={submitting}
-            >
-              Xác nhận check-out
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

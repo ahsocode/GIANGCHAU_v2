@@ -2,35 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type RawEventItem = {
+type MachineEventItem = {
   id: string;
   deviceCode: string;
   machineId: number | null;
-  deviceIp: string | null;
   deviceUserCode: string;
-  employee: {
-    id: string;
-    code: string | null;
-    fullName: string | null;
-    isActive: boolean;
-  } | null;
   userSn: number | null;
   epochMs: string;
   occurredAt: string | Date;
-  verifyType: string | null;
-  inOut: string | null;
-  dedupeKey: string;
-  raw: unknown;
   createdAt: string | Date;
 };
 
 type ApiResponse = {
   ok: boolean;
-  items?: RawEventItem[];
+  items?: MachineEventItem[];
   nextCursor?: string | null;
 };
 
@@ -49,39 +38,23 @@ function formatDateTime(value: string | Date) {
   return dateTimeFormatter.format(d);
 }
 
-function safeStringify(value: unknown) {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
 
-function truncate(value: string, max = 160) {
-  if (value.length <= max) return value;
-  return value.slice(0, max) + "…";
-}
-
-export default function RawEventsClient() {
-  const [items, setItems] = useState<RawEventItem[]>([]);
+export default function MayChamCongClient() {
+  const [items, setItems] = useState<MachineEventItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [deviceCode, setDeviceCode] = useState("");
-  const [deviceUserCode, setDeviceUserCode] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [take, setTake] = useState("50");
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
-    if (deviceCode.trim()) params.set("deviceCode", deviceCode.trim());
-    if (deviceUserCode.trim()) params.set("deviceUserCode", deviceUserCode.trim());
     if (from.trim()) params.set("from", from.trim());
     if (to.trim()) params.set("to", to.trim());
     if (take.trim()) params.set("take", take.trim());
     return params;
-  }, [deviceCode, deviceUserCode, from, to, take]);
+  }, [from, to, take]);
 
   const fetchEvents = async (cursor?: string | null, mode: "replace" | "append" = "replace") => {
     const params = new URLSearchParams(queryParams);
@@ -91,9 +64,9 @@ export default function RawEventsClient() {
     else setLoading(true);
 
     try {
-      const res = await fetch(`/api/system/attendance/raw-events?${params.toString()}`);
+      const res = await fetch(`/api/cham-cong/may-cham-cong?${params.toString()}`);
       if (!res.ok) {
-        let message = `Không tải được raw events (HTTP ${res.status})`;
+        let message = `Không tải được dữ liệu (HTTP ${res.status})`;
         try {
           const payload = (await res.json()) as { error?: string; message?: string };
           if (payload.error || payload.message) {
@@ -109,7 +82,7 @@ export default function RawEventsClient() {
       setNextCursor(data.nextCursor ?? null);
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Không tải được raw events");
+      toast.error(error instanceof Error ? error.message : "Không tải được dữ liệu");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -132,20 +105,12 @@ export default function RawEventsClient() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg sm:text-xl font-semibold">Raw chấm công</h1>
-        <p className="text-sm text-muted-foreground">Danh sách log thô từ máy chấm công.</p>
+        <h1 className="text-lg sm:text-xl font-semibold">Dữ liệu máy chấm công</h1>
+        <p className="text-sm text-muted-foreground">Lịch sử log từ máy chấm công đã được map.</p>
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border bg-white p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-          <div className="space-y-1">
-            <label className="text-sm text-slate-600">Device code</label>
-            <Input value={deviceCode} onChange={(e) => setDeviceCode(e.target.value)} placeholder="MCC00001" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm text-slate-600">User code</label>
-            <Input value={deviceUserCode} onChange={(e) => setDeviceUserCode(e.target.value)} placeholder="123" />
-          </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="space-y-1">
             <label className="text-sm text-slate-600">Từ ngày</label>
             <Input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="YYYY-MM-DD" />
@@ -175,55 +140,32 @@ export default function RawEventsClient() {
                 <TableHead className="w-14 text-center bg-slate-100 whitespace-nowrap">STT</TableHead>
                 <TableHead className="min-w-40 text-center bg-slate-100 whitespace-nowrap">Thời gian</TableHead>
                 <TableHead className="min-w-28 text-center bg-slate-100 whitespace-nowrap">Device</TableHead>
-                <TableHead className="min-w-28 text-center bg-slate-100 whitespace-nowrap">User</TableHead>
-                <TableHead className="min-w-40 text-center bg-slate-100 whitespace-nowrap">Nhân viên</TableHead>
-                <TableHead className="min-w-24 text-center bg-slate-100 whitespace-nowrap">Verify</TableHead>
-                <TableHead className="min-w-20 text-center bg-slate-100 whitespace-nowrap">In/Out</TableHead>
+                <TableHead className="min-w-24 text-center bg-slate-100 whitespace-nowrap">User</TableHead>
                 <TableHead className="min-w-24 text-center bg-slate-100 whitespace-nowrap">Máy</TableHead>
-                <TableHead className="min-w-28 text-center bg-slate-100 whitespace-nowrap">IP</TableHead>
-                <TableHead className="min-w-64 text-center bg-slate-100 whitespace-nowrap">Raw</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                     Đang tải dữ liệu...
                   </TableCell>
                 </TableRow>
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                     Không có dữ liệu.
                   </TableCell>
                 </TableRow>
               ) : (
                 items.map((item, index) => {
-                  const rawText = safeStringify(item.raw);
-                  const rawPreview = truncate(rawText);
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="text-center text-sm text-slate-500">{index + 1}</TableCell>
                       <TableCell className="text-center text-sm">{formatDateTime(item.occurredAt)}</TableCell>
                       <TableCell className="text-center font-medium">{item.deviceCode}</TableCell>
                       <TableCell className="text-center">{item.deviceUserCode}</TableCell>
-                      <TableCell className="text-center">
-                        {item.employee ? (
-                          <div className="space-y-1">
-                            <div className="font-medium">{item.employee.fullName ?? "—"}</div>
-                            <div className="text-xs text-slate-500">{item.employee.code ?? "—"}</div>
-                          </div>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center text-sm">{item.verifyType ?? "—"}</TableCell>
-                      <TableCell className="text-center text-sm">{item.inOut ?? "—"}</TableCell>
                       <TableCell className="text-center text-sm">{item.machineId ?? "—"}</TableCell>
-                      <TableCell className="text-center text-sm">{item.deviceIp ?? "—"}</TableCell>
-                      <TableCell className="text-left text-xs font-mono whitespace-pre-wrap" title={rawText}>
-                        {rawPreview}
-                      </TableCell>
                     </TableRow>
                   );
                 })

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { href: "/cham-cong", label: "Chấm công" },
   { href: "/cham-cong/lich-su", label: "Lịch sử chấm công" },
+  { href: "/cham-cong/may-cham-cong", label: "Dữ liệu máy chấm công" },
 ];
 
 export default function ChamCongTabs() {

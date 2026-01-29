@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AttendanceCheckInStatus, AttendanceCheckOutStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { processAttendanceMachineEventsForPairs } from "@/lib/attendance-machine";
 
 function getDateRangeForToday() {
   const now = new Date();
@@ -163,6 +164,34 @@ export async function GET() {
   ]);
 
   let attendanceRecord = record;
+  if (schedule && !attendanceRecord?.checkInAt) {
+    const mappings = await prisma.attendanceDeviceUserMapping.findMany({
+      where: { employeeId, isActive: true },
+      select: { deviceCode: true, deviceUserCode: true },
+    });
+    if (mappings.length > 0) {
+      await processAttendanceMachineEventsForPairs({
+        pairs: mappings,
+        from: start,
+        to: end,
+      });
+      attendanceRecord = await prisma.attendanceRecord.findFirst({
+        where: { employeeId, date: { gte: start, lt: end } },
+        select: {
+          id: true,
+          checkInAt: true,
+          checkOutAt: true,
+          workMinutes: true,
+          lateMinutes: true,
+          earlyLeaveMinutes: true,
+          overtimeMinutes: true,
+          status: true,
+          checkInStatus: true,
+          checkOutStatus: true,
+        },
+      });
+    }
+  }
   let nextAllowedCheckInAt: Date | null = null;
   const shiftWindow = schedule
     ? resolveShiftWindow(schedule.date, schedule.plannedStart, schedule.plannedEnd)
@@ -284,6 +313,46 @@ export async function GET() {
       });
     }
   }
+  const events = await prisma.attendanceEvent.findMany({
+    where: {
+      employeeId,
+      date: { gte: start, lt: end },
+      type: { in: ["CHECK_IN", "CHECK_OUT"] },
+    },
+    select: {
+      id: true,
+      type: true,
+      source: true,
+      meta: true,
+    },
+  });
+
+  const checkInEvent = events.find((event) => event.type === "CHECK_IN") ?? null;
+  const checkOutEvent = events.find((event) => event.type === "CHECK_OUT") ?? null;
+
+  async function resolveMachineEventId(event: typeof checkInEvent) {
+    if (!event?.meta) return null;
+    const meta = event.meta as { deviceCode?: string; deviceUserCode?: string; epochMs?: string };
+    if (!meta?.deviceCode || !meta?.deviceUserCode || !meta?.epochMs) return null;
+    try {
+      const machineEvent = await prisma.attendanceMachineEvent.findFirst({
+        where: {
+          deviceCode: meta.deviceCode,
+          deviceUserCode: meta.deviceUserCode,
+          epochMs: BigInt(meta.epochMs),
+        },
+        select: { id: true },
+      });
+      return machineEvent?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  const [checkInMachineEventId, checkOutMachineEventId] = await Promise.all([
+    resolveMachineEventId(checkInEvent),
+    resolveMachineEventId(checkOutEvent),
+  ]);
   const allowCheckIn =
     !!schedule &&
     !attendanceRecord?.checkInAt &&
@@ -334,6 +403,13 @@ export async function GET() {
           overtimeMinutes: attendanceRecord.overtimeMinutes ?? 0,
           checkInStatus: attendanceRecord.checkInStatus ?? null,
           checkOutStatus: attendanceRecord.checkOutStatus ?? null,
+          logIds: {
+            recordId: attendanceRecord.id,
+            checkInEventId: checkInEvent?.id ?? null,
+            checkOutEventId: checkOutEvent?.id ?? null,
+            checkInMachineEventId,
+            checkOutMachineEventId,
+          },
         }
       : null,
     summary,

@@ -226,7 +226,11 @@ async function main() {
       const maxEvent = list.reduce((max, x) => (x.occurredAt > max.occurredAt ? x : max), list[0]);
 
       const checkInAt = minEvent.occurredAt;
-      const checkOutAt = maxEvent.occurredAt.getTime() === minEvent.occurredAt.getTime() ? null : maxEvent.occurredAt;
+      let checkOutAt =
+        maxEvent.occurredAt.getTime() === minEvent.occurredAt.getTime() ? null : maxEvent.occurredAt;
+      if (checkOutAt && checkOutAt.getTime() === checkInAt.getTime()) {
+        checkOutAt = null;
+      }
 
       const schedule = await prisma.workSchedule.findUnique({
         where: { employeeId_date: { employeeId, date: dateOnly } },
