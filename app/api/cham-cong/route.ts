@@ -3,28 +3,11 @@ import { AttendanceCheckInStatus, AttendanceCheckOutStatus } from "@prisma/clien
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { processAttendanceMachineEventsForPairs } from "@/lib/attendance-machine";
-
-function getDateRangeForToday() {
-  const now = new Date();
-  const start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  const end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-  return { start, end, dateOnly: start };
-}
-
-function getLocalDateFromUtcDate(value: Date) {
-  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-}
-
-function combineDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const next = getLocalDateFromUtcDate(date);
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  return next;
-}
+import { combineDateTimeInTimeZone, getDateRangeForTodayInTimeZone } from "@/lib/timezone";
 
 function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
-  const start = combineDateTime(date, startTime);
-  let end = combineDateTime(date, endTime);
+  const start = combineDateTimeInTimeZone(date, startTime);
+  let end = combineDateTimeInTimeZone(date, endTime);
   if (end.getTime() <= start.getTime()) {
     end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
   }
@@ -125,7 +108,7 @@ export async function GET() {
     return NextResponse.json({ message: "Không tìm thấy nhân viên" }, { status: 404 });
   }
 
-  const { start, end, dateOnly } = getDateRangeForToday();
+  const { start, end, dateOnly } = getDateRangeForTodayInTimeZone();
 
   const [schedule, record, nextSchedule] = await Promise.all([
     prisma.workSchedule.findFirst({
@@ -200,7 +183,7 @@ export async function GET() {
   const shiftEnd = shiftWindow?.end ?? null;
   const checkInWindowStart = shiftStart ? new Date(shiftStart.getTime() - 60 * 60 * 1000) : null;
   if (record?.checkOutAt && nextSchedule) {
-    const nextShiftStart = combineDateTime(nextSchedule.date, nextSchedule.plannedStart);
+    const nextShiftStart = combineDateTimeInTimeZone(nextSchedule.date, nextSchedule.plannedStart);
     nextAllowedCheckInAt = new Date(nextShiftStart.getTime() - 60 * 60 * 1000);
   }
 
@@ -439,7 +422,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Hành động không hợp lệ." }, { status: 400 });
   }
 
-  const { start, end, dateOnly } = getDateRangeForToday();
+  const { start, end, dateOnly } = getDateRangeForTodayInTimeZone();
   const now = new Date();
 
   const schedule = await prisma.workSchedule.findFirst({

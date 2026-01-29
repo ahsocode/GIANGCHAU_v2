@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { combineDateTimeInTimeZone, getDateOnlyInTimeZone } from "@/lib/timezone";
 
 function formatDate(value: Date) {
   return value.toISOString().slice(0, 10);
@@ -13,20 +14,9 @@ function parseDateOnly(value: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getLocalDateFromUtcDate(value: Date) {
-  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-}
-
-function combineDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const next = getLocalDateFromUtcDate(date);
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  return next;
-}
-
 function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
-  const start = combineDateTime(date, startTime);
-  let end = combineDateTime(date, endTime);
+  const start = combineDateTimeInTimeZone(date, startTime);
+  let end = combineDateTimeInTimeZone(date, endTime);
   if (end.getTime() <= start.getTime()) {
     end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
   }
@@ -66,9 +56,9 @@ export async function GET(request: Request) {
 
   const emp = account.employee;
   const now = new Date();
-  const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-  const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1));
+  const todayUtc = getDateOnlyInTimeZone(now);
+  const monthStart = new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth() + 1, 1));
 
   let rangeStart = monthStart;
   let rangeEnd = todayUtc;

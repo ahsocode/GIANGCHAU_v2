@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { combineDateTimeInTimeZone } from "@/lib/timezone";
 import type { AttendanceCheckInStatus, AttendanceCheckOutStatus, RequestType } from "@prisma/client";
-
-function getLocalDateFromUtcDate(value: Date) {
-  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-}
-
-function combineDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const next = getLocalDateFromUtcDate(date);
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  return next;
-}
 
 function normalizeAttendanceTime(params: {
   date: Date;
@@ -25,9 +15,9 @@ function normalizeAttendanceTime(params: {
   const [timeHours, timeMinutes] = time.split(":").map(Number);
   const [startHours, startMinutes] = plannedStart.split(":").map(Number);
   const [endHours, endMinutes] = plannedEnd.split(":").map(Number);
-  const base = combineDateTime(date, time);
-  const start = combineDateTime(date, plannedStart);
-  const endSameDay = combineDateTime(date, plannedEnd);
+  const base = combineDateTimeInTimeZone(date, time);
+  const start = combineDateTimeInTimeZone(date, plannedStart);
+  const endSameDay = combineDateTimeInTimeZone(date, plannedEnd);
   if (endSameDay.getTime() > start.getTime()) return base;
 
   const minutesValue = (timeHours || 0) * 60 + (timeMinutes || 0);
@@ -44,8 +34,8 @@ function normalizeAttendanceTime(params: {
 }
 
 function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
-  const start = combineDateTime(date, startTime);
-  let end = combineDateTime(date, endTime);
+  const start = combineDateTimeInTimeZone(date, startTime);
+  let end = combineDateTimeInTimeZone(date, endTime);
   if (end.getTime() <= start.getTime()) {
     end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
   }

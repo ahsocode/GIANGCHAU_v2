@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { combineDateTimeInTimeZone, getDateOnlyInTimeZone } from "@/lib/timezone";
 
 function parseDateOnly(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -9,20 +10,9 @@ function parseDateOnly(value: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getLocalDateFromUtcDate(value: Date) {
-  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-}
-
-function combineDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const next = getLocalDateFromUtcDate(date);
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  return next;
-}
-
 function resolveShiftWindow(date: Date, startTime: string, endTime: string) {
-  const start = combineDateTime(date, startTime);
-  let end = combineDateTime(date, endTime);
+  const start = combineDateTimeInTimeZone(date, startTime);
+  let end = combineDateTimeInTimeZone(date, endTime);
   if (end.getTime() <= start.getTime()) {
     end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
   }
@@ -89,7 +79,7 @@ export async function GET(request: Request) {
   });
 
   const now = new Date();
-  const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const todayUtc = getDateOnlyInTimeZone(now);
   const autoAbsent = new Map<string, { status: string; checkInStatus: string | null; checkOutStatus: string | null }>();
   const updates = records.map((record) => {
     if (record.checkInAt) return null;
