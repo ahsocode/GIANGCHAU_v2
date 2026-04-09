@@ -131,7 +131,7 @@ export function CaLamList() {
 
   async function handleStatusChange(item: WorkShiftItem, nextStatus: WorkShiftItem["status"]) {
     if (item.employeeCount && item.employeeCount > 0) {
-      toast.error("Không thể đổi trạng thái vì đã có nhân viên thuộc ca này.");
+      toast.error("Không thể đổi trạng thái vì ca này đang được phân cho hiện tại hoặc tương lai.");
       return;
     }
     if (item.status === nextStatus) return;
@@ -245,7 +245,7 @@ export function CaLamList() {
               <TableHead className="min-w-24 text-center bg-slate-100 whitespace-nowrap">Sớm</TableHead>
               <TableHead className="min-w-24 text-center bg-slate-100 whitespace-nowrap">Tăng ca</TableHead>
               <TableHead className="min-w-36 text-center bg-slate-100 whitespace-nowrap">Trạng thái</TableHead>
-              <TableHead className="w-28 text-center bg-slate-100 whitespace-nowrap">Tổng ca</TableHead>
+              <TableHead className="w-28 text-center bg-slate-100 whitespace-nowrap" title="Số lịch phân ca từ hôm nay trở đi">Lịch (hiện tại+)</TableHead>
               <TableHead className="w-32 text-center bg-slate-100 whitespace-nowrap">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
@@ -287,7 +287,7 @@ export function CaLamList() {
                       }
                       title={
                         (item.employeeCount ?? 0) > 0
-                          ? "Không thể đổi trạng thái vì đã có nhân viên thuộc ca này."
+                          ? "Không thể đổi trạng thái vì ca này đang được phân cho hiện tại hoặc tương lai."
                           : "Đổi trạng thái ca làm"
                       }
                       className="rounded-none border border-slate-300 bg-white px-2 py-1.5 text-sm"

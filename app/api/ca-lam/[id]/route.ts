@@ -59,12 +59,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   if (status !== current.status) {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const scheduleCount = await prisma.workSchedule.count({
-      where: { workShiftId: params.id },
+      where: {
+        workShiftId: params.id,
+        date: {
+          gte: startOfToday,
+        },
+      },
     });
     if (scheduleCount > 0) {
       return NextResponse.json(
-        { message: "Không thể đổi trạng thái vì đã có nhân viên thuộc ca này." },
+        { message: "Không thể đổi trạng thái vì ca này đang được phân cho hiện tại hoặc tương lai." },
         { status: 400 }
       );
     }
