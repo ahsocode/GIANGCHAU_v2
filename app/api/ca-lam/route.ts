@@ -14,9 +14,24 @@ type CreatePayload = {
 };
 
 export async function GET() {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
   const items = await prisma.workShift.findMany({
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { schedules: true } } },
+    include: {
+      _count: {
+        select: {
+          schedules: {
+            where: {
+              date: {
+                gte: startOfToday,
+              },
+            },
+          },
+        },
+      },
+    },
   });
   return NextResponse.json({
     items: items.map((item) => ({
