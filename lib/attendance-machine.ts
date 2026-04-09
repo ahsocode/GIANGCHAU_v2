@@ -25,6 +25,14 @@ function resolveCheckInWindow(date: Date, startTime: string, endTime: string) {
   };
 }
 
+function resolveFullWindowForGrouping(date: Date, startTime: string, endTime: string) {
+  const base = resolveShiftWindow(date, startTime, endTime);
+  return {
+    start: new Date(base.start.getTime() - CHECKIN_BUFFER_MINUTES * 60000),
+    end: new Date(base.end.getTime() + AUTO_CHECKOUT_AFTER_HOURS * 60 * 60 * 1000),
+  };
+}
+
 function diffMinutes(start: Date, end: Date) {
   return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
 }
@@ -237,7 +245,7 @@ function buildGroups(
 
     const todaySchedule = scheduleMap.get(`${employeeId}||${dateOnly.toISOString()}`);
     if (todaySchedule) {
-      const window = resolveCheckInWindow(
+      const window = resolveFullWindowForGrouping(
         todaySchedule.date,
         todaySchedule.plannedStart,
         todaySchedule.plannedEnd
@@ -250,7 +258,7 @@ function buildGroups(
     if (assignedDate === dateOnly) {
       const prevSchedule = scheduleMap.get(`${employeeId}||${prevDateOnly.toISOString()}`);
       if (prevSchedule) {
-        const window = resolveCheckInWindow(
+        const window = resolveFullWindowForGrouping(
           prevSchedule.date,
           prevSchedule.plannedStart,
           prevSchedule.plannedEnd
@@ -309,6 +317,26 @@ async function applyGroups(
 ) {
   for (const group of groups.values()) {
     const { employeeId, dateOnly, events: occurredEvents } = group;
+
+    const existingEvents = await prisma.attendanceEvent.findMany({
+      where: { employeeId, date: dateOnly, source: "DEVICE" },
+      select: { occurredAt: true, meta: true },
+    });
+
+    for (const evt of existingEvents) {
+      if (evt.meta && typeof evt.meta === "object") {
+        const meta = evt.meta as { deviceCode?: string; deviceUserCode?: string; epochMs?: string | number };
+        if (meta.deviceCode && meta.deviceUserCode && meta.epochMs) {
+          occurredEvents.push({
+            occurredAt: evt.occurredAt,
+            epochMs: BigInt(meta.epochMs),
+            deviceCode: meta.deviceCode,
+            deviceUserCode: meta.deviceUserCode,
+          });
+        }
+      }
+    }
+
     const minEvent = occurredEvents.reduce(
       (min, value) => (value.occurredAt < min.occurredAt ? value : min),
       occurredEvents[0]
@@ -460,18 +488,29 @@ async function applyGroups(
 
     const shiftWindow = resolveShiftWindow(schedule.date, schedule.plannedStart, schedule.plannedEnd);
     const cutoffAfterShift = new Date(shiftWindow.end.getTime() + AUTO_CHECKOUT_AFTER_HOURS * 60 * 60 * 1000);
-    const nextDateOnly = new Date(schedule.date.getTime() + 24 * 60 * 60 * 1000);
-    const nextSchedule = scheduleMap.get(`${employeeId}||${nextDateOnly.toISOString()}`);
+    const nextSchedule = await prisma.workSchedule.findFirst({
+      where: { employeeId, date: { gt: dateOnly } },
+      orderBy: { date: "asc" },
+      select: { date: true, plannedStart: true }
+    });
     const nextShiftStart = nextSchedule
       ? combineDateTimeInTimeZone(nextSchedule.date, nextSchedule.plannedStart)
       : null;
     const cutoffByNextShift = nextShiftStart
       ? new Date(nextShiftStart.getTime() - NEXT_SHIFT_BUFFER_HOURS * 60 * 60 * 1000)
       : null;
-    const cutoff =
-      cutoffByNextShift && cutoffByNextShift.getTime() < cutoffAfterShift.getTime()
-        ? cutoffByNextShift
-        : cutoffAfterShift;
+    let autoCheckoutAt = (cutoffByNextShift && cutoffByNextShift.getTime() < cutoffAfterShift.getTime()) 
+      ? cutoffByNextShift 
+      : cutoffAfterShift;
+
+    if (autoCheckoutAt.getTime() < shiftWindow.end.getTime()) {
+      autoCheckoutAt = shiftWindow.end;
+    }
+
+    let cutoff = autoCheckoutAt;
+    if (cutoff.getTime() < shiftWindow.end.getTime()) {
+      cutoff = shiftWindow.end;
+    }
 
     const checkoutCandidates = occurredEvents.filter(
       (event) => event.occurredAt.getTime() >= checkInAt.getTime() && event.occurredAt.getTime() <= cutoff.getTime()
