@@ -110,9 +110,24 @@ export async function GET() {
 
   const { start, end, dateOnly } = getDateRangeForTodayInTimeZone();
 
-  const [schedule, record, nextSchedule] = await Promise.all([
+  const prevDateStart = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+
+  const [todaySchedule, yesterdaySchedule, todayRecord, yesterdayRecord, upcomingSchedules] = await Promise.all([
     prisma.workSchedule.findFirst({
       where: { employeeId, date: { gte: start, lt: end } },
+      select: {
+        id: true,
+        date: true,
+        plannedName: true,
+        plannedStart: true,
+        plannedEnd: true,
+        plannedBreakMinutes: true,
+        plannedLateGraceMinutes: true,
+        plannedEarlyGraceMinutes: true,
+      },
+    }),
+    prisma.workSchedule.findFirst({
+      where: { employeeId, date: { gte: prevDateStart, lt: start } },
       select: {
         id: true,
         date: true,
@@ -139,12 +154,55 @@ export async function GET() {
         checkOutStatus: true,
       },
     }),
-    prisma.workSchedule.findFirst({
+    prisma.attendanceRecord.findFirst({
+      where: { employeeId, date: { gte: prevDateStart, lt: start } },
+      select: {
+        id: true,
+        checkInAt: true,
+        checkOutAt: true,
+        workMinutes: true,
+        lateMinutes: true,
+        earlyLeaveMinutes: true,
+        overtimeMinutes: true,
+        status: true,
+        checkInStatus: true,
+        checkOutStatus: true,
+      },
+    }),
+    prisma.workSchedule.findMany({
       where: { employeeId, date: { gt: dateOnly } },
       orderBy: { date: "asc" },
+      take: 1,
       select: { date: true, plannedStart: true },
     }),
   ]);
+
+  let schedule = todaySchedule;
+  let record = todayRecord;
+  let isOvernightActive = false;
+  let activeDateOnly = dateOnly;
+
+  if (yesterdaySchedule) {
+    const yWindow = resolveShiftWindow(yesterdaySchedule.date, yesterdaySchedule.plannedStart, yesterdaySchedule.plannedEnd);
+    const isYesterdayOvernight = yWindow.end.getTime() > yWindow.start.getTime() + 24 * 60 * 60 * 1000 - 1000 || yesterdaySchedule.plannedEnd <= yesterdaySchedule.plannedStart;
+    
+    // If it's overnight and not checked out, or if checkOut is missing and we haven't crossed the auto-checkout boundary (which we'll handle below)
+    if (isYesterdayOvernight) {
+      if (yesterdayRecord?.checkInAt && !yesterdayRecord?.checkOutAt) {
+        schedule = yesterdaySchedule;
+        record = yesterdayRecord;
+        isOvernightActive = true;
+        activeDateOnly = new Date(dateOnly.getTime() - 24 * 60 * 60 * 1000);
+      } else if (!yesterdayRecord?.checkInAt && new Date().getTime() <= yWindow.end.getTime()) {
+        schedule = yesterdaySchedule;
+        record = yesterdayRecord;
+        isOvernightActive = true;
+        activeDateOnly = new Date(dateOnly.getTime() - 24 * 60 * 60 * 1000);
+      }
+    }
+  }
+
+  const nextSchedule = upcomingSchedules[0] ?? null;
 
   let attendanceRecord = record;
   if (schedule && !attendanceRecord?.checkInAt) {
@@ -155,11 +213,11 @@ export async function GET() {
     if (mappings.length > 0) {
       await processAttendanceMachineEventsForPairs({
         pairs: mappings,
-        from: start,
+        from: isOvernightActive ? new Date(start.getTime() - 24 * 60 * 60 * 1000) : start,
         to: end,
       });
       attendanceRecord = await prisma.attendanceRecord.findFirst({
-        where: { employeeId, date: { gte: start, lt: end } },
+        where: { employeeId, date: activeDateOnly },
         select: {
           id: true,
           checkInAt: true,
@@ -213,7 +271,7 @@ export async function GET() {
       : await prisma.attendanceRecord.create({
           data: {
             employeeId,
-            date: dateOnly,
+            date: activeDateOnly,
             scheduleId: schedule.id,
             status: "ABSENT",
             checkInStatus: "MISSED",
@@ -236,7 +294,19 @@ export async function GET() {
   }
 
   if (schedule && attendanceRecord?.checkInAt && !attendanceRecord.checkOutAt && shiftEnd) {
-    const autoCheckoutAt = new Date(shiftEnd.getTime() + 8 * 60 * 60 * 1000);
+    // Determine cutoff
+    const cutoffAfterShift = new Date(shiftEnd.getTime() + 8 * 60 * 60 * 1000);
+    const nextShiftStart = nextSchedule ? combineDateTimeInTimeZone(nextSchedule.date, nextSchedule.plannedStart) : null;
+    const cutoffByNextShift = nextShiftStart ? new Date(nextShiftStart.getTime() - 2 * 60 * 60 * 1000) : null;
+    
+    let autoCheckoutAt = (cutoffByNextShift && cutoffByNextShift.getTime() < cutoffAfterShift.getTime()) 
+      ? cutoffByNextShift 
+      : cutoffAfterShift;
+
+    if (autoCheckoutAt.getTime() < shiftEnd.getTime()) {
+      autoCheckoutAt = shiftEnd;
+    }
+
     if (now.getTime() >= autoCheckoutAt.getTime()) {
       const summary = computeSummary({
         schedule: {
@@ -287,7 +357,7 @@ export async function GET() {
       await prisma.attendanceEvent.create({
         data: {
           employeeId,
-          date: dateOnly,
+          date: activeDateOnly,
           recordId: attendanceRecord.id,
           type: "CHECK_OUT",
           occurredAt: autoCheckoutAt,
@@ -299,7 +369,7 @@ export async function GET() {
   const events = await prisma.attendanceEvent.findMany({
     where: {
       employeeId,
-      date: { gte: start, lt: end },
+      date: activeDateOnly,
       type: { in: ["CHECK_IN", "CHECK_OUT"] },
     },
     select: {
@@ -423,34 +493,73 @@ export async function POST(request: Request) {
   }
 
   const { start, end, dateOnly } = getDateRangeForTodayInTimeZone();
+  const prevDateStart = new Date(start.getTime() - 24 * 60 * 60 * 1000);
   const now = new Date();
 
-  const schedule = await prisma.workSchedule.findFirst({
-    where: { employeeId, date: { gte: start, lt: end } },
-    select: {
-      id: true,
-      date: true,
-      plannedName: true,
-      plannedStart: true,
-      plannedEnd: true,
-      plannedBreakMinutes: true,
-      plannedLateGraceMinutes: true,
-      plannedEarlyGraceMinutes: true,
-    },
-  });
+  const [todaySchedule, yesterdaySchedule, todayRecord, yesterdayRecord] = await Promise.all([
+    prisma.workSchedule.findFirst({
+      where: { employeeId, date: { gte: start, lt: end } },
+      select: {
+        id: true,
+        date: true,
+        plannedName: true,
+        plannedStart: true,
+        plannedEnd: true,
+        plannedBreakMinutes: true,
+        plannedLateGraceMinutes: true,
+        plannedEarlyGraceMinutes: true,
+      },
+    }),
+    prisma.workSchedule.findFirst({
+      where: { employeeId, date: { gte: prevDateStart, lt: start } },
+      select: {
+        id: true,
+        date: true,
+        plannedName: true,
+        plannedStart: true,
+        plannedEnd: true,
+        plannedBreakMinutes: true,
+        plannedLateGraceMinutes: true,
+        plannedEarlyGraceMinutes: true,
+      },
+    }),
+    prisma.attendanceRecord.findFirst({
+      where: { employeeId, date: { gte: start, lt: end } },
+    }),
+    prisma.attendanceRecord.findFirst({
+      where: { employeeId, date: { gte: prevDateStart, lt: start } },
+    }),
+  ]);
+
+  let schedule = todaySchedule;
+  let record = todayRecord;
+  let activeDateOnly = dateOnly;
+
+  if (yesterdaySchedule) {
+    const yWindow = resolveShiftWindow(yesterdaySchedule.date, yesterdaySchedule.plannedStart, yesterdaySchedule.plannedEnd);
+    const isYesterdayOvernight = yesterdaySchedule.plannedEnd <= yesterdaySchedule.plannedStart;
+    
+    if (isYesterdayOvernight) {
+      if (yesterdayRecord?.checkInAt && !yesterdayRecord?.checkOutAt) {
+        schedule = yesterdaySchedule;
+        record = yesterdayRecord;
+        activeDateOnly = new Date(dateOnly.getTime() - 24 * 60 * 60 * 1000);
+      } else if (!yesterdayRecord?.checkInAt && new Date().getTime() <= yWindow.end.getTime()) {
+        schedule = yesterdaySchedule;
+        record = yesterdayRecord;
+        activeDateOnly = new Date(dateOnly.getTime() - 24 * 60 * 60 * 1000);
+      }
+    }
+  }
 
   if (!schedule) {
-    return NextResponse.json({ message: "Hôm nay bạn chưa được phân ca." }, { status: 400 });
+    return NextResponse.json({ message: "Chưa được phân ca." }, { status: 400 });
   }
 
   const shiftWindow = resolveShiftWindow(schedule.date, schedule.plannedStart, schedule.plannedEnd);
   const shiftStart = shiftWindow.start;
   const shiftEnd = shiftWindow.end;
   const checkInWindowStart = new Date(shiftStart.getTime() - 60 * 60 * 1000);
-
-  const record = await prisma.attendanceRecord.findFirst({
-    where: { employeeId, date: { gte: start, lt: end } },
-  });
 
   if (body.action === "checkin") {
     if (now.getTime() < checkInWindowStart.getTime()) {
@@ -491,7 +600,7 @@ export async function POST(request: Request) {
       : await prisma.attendanceRecord.create({
           data: {
             employeeId,
-            date: dateOnly,
+            date: activeDateOnly,
             scheduleId: schedule.id,
             checkInAt: now,
             checkInStatus,
@@ -504,7 +613,7 @@ export async function POST(request: Request) {
     await prisma.attendanceEvent.create({
       data: {
         employeeId,
-        date: dateOnly,
+        date: activeDateOnly,
         recordId: updated.id,
         type: "CHECK_IN",
         occurredAt: now,
@@ -564,7 +673,7 @@ export async function POST(request: Request) {
   await prisma.attendanceEvent.create({
     data: {
       employeeId,
-      date: dateOnly,
+      date: activeDateOnly,
       recordId: updated.id,
       type: "CHECK_OUT",
       occurredAt: now,
