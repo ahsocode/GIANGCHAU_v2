@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { href: "/quan-li-cham-cong", label: "Dữ liệu chấm công" },
-  { href: "/quan-li-cham-cong/raw-event", label: "Dữ liệu chấm công chưa qua xử lý" },
-  { href: "/quan-li-cham-cong/device-users", label: "Nhân viên trong máy chấm công" },
+  { href: "/quan-li-cham-cong", label: "D\u1eef li\u1ec7u ch\u1ea5m c\u00f4ng" },
+  { href: "/quan-li-cham-cong/danh-sach", label: "Danh s\u00e1ch ch\u1ea5m c\u00f4ng" },
+  { href: "/quan-li-cham-cong/raw-event", label: "D\u1eef li\u1ec7u ch\u1ea5m c\u00f4ng ch\u01b0a qua x\u1eed l\u00fd" },
+  { href: "/quan-li-cham-cong/device-users", label: "Nh\u00e2n vi\u00ean trong m\u00e1y ch\u1ea5m c\u00f4ng" },
 ];
 
 export default function QuanLiChamCongTabs() {
