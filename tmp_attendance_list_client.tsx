@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -11,11 +10,8 @@ type EmployeeOption = {
   id: string;
   code: string | null;
   fullName: string;
-  isActive?: boolean;
   departmentId?: string | null;
-  departmentName?: string | null;
   positionId?: string | null;
-  positionName?: string | null;
 };
 
 type DepartmentOption = {
@@ -74,8 +70,6 @@ type ApiResponse = {
 };
 
 type ViewMode = "RANGE" | "MONTH" | "DAY";
-type ExportType = "PERSONAL" | "ALL" | "DEPARTMENT" | "POSITION";
-type ExportPeriod = "DAY" | "MONTH";
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "Tat ca trang thai" },
@@ -187,54 +181,6 @@ function csvEscape(value: string | number | null | undefined) {
   return text;
 }
 
-function buildNoDataItem(employee: EmployeeOption, date: string): Item {
-  return {
-    id: `no-data-${employee.id}-${date}`,
-    date,
-    employee: {
-      id: employee.id,
-      code: employee.code ?? null,
-      fullName: employee.fullName,
-      isActive: employee.isActive ?? true,
-      departmentId: employee.departmentId ?? null,
-      departmentName: employee.departmentName ?? null,
-      positionId: employee.positionId ?? null,
-      positionName: employee.positionName ?? null,
-    },
-    shift: {
-      name: "Khong co ca",
-      start: "-",
-      end: "-",
-    },
-    attendance: {
-      id: null,
-      checkInAt: null,
-      checkOutAt: null,
-      status: "NO_SHIFT",
-      checkInStatus: null,
-      checkOutStatus: null,
-      lateMinutes: 0,
-      earlyLeaveMinutes: 0,
-      overtimeMinutes: 0,
-      workMinutes: 0,
-    },
-    derivedStatuses: [],
-  };
-}
-
-function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number | null | undefined>>) {
-  const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const tag = document.createElement("a");
-  tag.href = url;
-  tag.download = filename;
-  document.body.append(tag);
-  tag.click();
-  tag.remove();
-  URL.revokeObjectURL(url);
-}
-
 export default function AttendanceListClient() {
   const today = useMemo(() => toInputDateLocal(new Date()), []);
   const monthStart = useMemo(() => {
@@ -261,15 +207,6 @@ export default function AttendanceListClient() {
   const [positionId, setPositionId] = useState("ALL");
   const [status, setStatus] = useState("ALL");
   const [limited, setLimited] = useState(false);
-  const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [exportLoading, setExportLoading] = useState(false);
-  const [exportType, setExportType] = useState<ExportType>("ALL");
-  const [exportPeriod, setExportPeriod] = useState<ExportPeriod>("DAY");
-  const [exportEmployeeId, setExportEmployeeId] = useState("ALL");
-  const [exportDepartmentId, setExportDepartmentId] = useState("ALL");
-  const [exportPositionId, setExportPositionId] = useState("ALL");
-  const [exportDayValue, setExportDayValue] = useState(today);
-  const [exportMonthValue, setExportMonthValue] = useState(thisMonth);
 
   const filteredEmployees = useMemo(
     () =>
@@ -336,18 +273,8 @@ export default function AttendanceListClient() {
       }
 
       const data = (await res.json()) as ApiResponse;
-      const fetchedItems = data.items ?? [];
-      const fetchedEmployees = data.employees ?? [];
-      const employeeIdsInItems = new Set(fetchedItems.map((item) => item.employee.id));
-      const missingRows =
-        status === "ALL"
-          ? fetchedEmployees
-              .filter((employee) => !employeeIdsInItems.has(employee.id))
-              .map((employee) => buildNoDataItem(employee, effectiveRange.from))
-          : [];
-
-      setItems([...fetchedItems, ...missingRows]);
-      setEmployees(fetchedEmployees);
+      setItems(data.items ?? []);
+      setEmployees(data.employees ?? []);
       setDepartments(data.departments ?? []);
       setPositions(data.positions ?? []);
       setLimited(data.limited === true);
@@ -363,269 +290,63 @@ export default function AttendanceListClient() {
     fetchData();
   }, [fetchData]);
 
-  async function fetchExportItems(params: {
-    from: string;
-    to: string;
-    exportType: ExportType;
-    employeeId?: string;
-    departmentId?: string;
-    positionId?: string;
-  }) {
-    const query = new URLSearchParams();
-    query.set("from", params.from);
-    query.set("to", params.to);
-    query.set("take", "5000");
-    if (params.exportType === "PERSONAL" && params.employeeId) query.set("employeeId", params.employeeId);
-    if (params.exportType === "DEPARTMENT" && params.departmentId) query.set("departmentId", params.departmentId);
-    if (params.exportType === "POSITION" && params.positionId) query.set("positionId", params.positionId);
-    const res = await fetch(`/api/quan-li-cham-cong/danh-sach?${query.toString()}`);
-    if (!res.ok) {
-      const payload = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
-      throw new Error(payload?.error ?? payload?.message ?? "Khong tai duoc du lieu xuat.");
-    }
-    const data = (await res.json()) as ApiResponse;
-    return {
-      items: data.items ?? [],
-      employees: data.employees ?? [],
-    };
-  }
-
-  async function handleExportCsv() {
-    if (exportType === "PERSONAL" && exportEmployeeId === "ALL") {
-      toast.error("Vui long chon nhan vien khi xuat ca nhan.");
-      return;
-    }
-    if (exportType === "DEPARTMENT" && exportDepartmentId === "ALL") {
-      toast.error("Vui long chon bo phan.");
-      return;
-    }
-    if (exportType === "POSITION" && exportPositionId === "ALL") {
-      toast.error("Vui long chon chuc vu.");
+  function exportCsv() {
+    if (items.length === 0) {
+      toast.error("Khong co du lieu de xuat.");
       return;
     }
 
-    setExportLoading(true);
-    try {
-      const range =
-        exportPeriod === "DAY"
-          ? { from: exportDayValue, to: exportDayValue }
-          : getMonthRange(exportMonthValue);
-      if (!range) throw new Error("Thoi gian xuat khong hop le.");
+    const headers = [
+      "Ngay",
+      "Ma nhan vien",
+      "Nhan vien",
+      "Bo phan",
+      "Chuc vu",
+      "Ca lam",
+      "Khung gio",
+      "Checkin",
+      "Trang thai checkin",
+      "Checkout",
+      "Trang thai checkout",
+      "Trang thai",
+      "Tre (phut)",
+      "Ve som (phut)",
+      "Tang ca (phut)",
+      "Lam viec (phut)",
+    ];
 
-      const { items: exportItems, employees: exportEmployees } = await fetchExportItems({
-        from: range.from,
-        to: range.to,
-        exportType,
-        employeeId: exportEmployeeId !== "ALL" ? exportEmployeeId : undefined,
-        departmentId: exportDepartmentId !== "ALL" ? exportDepartmentId : undefined,
-        positionId: exportPositionId !== "ALL" ? exportPositionId : undefined,
-      });
+    const rows = items.map((item) => [
+      item.date,
+      item.employee.code ?? "",
+      item.employee.fullName,
+      item.employee.departmentName ?? "",
+      item.employee.positionName ?? "",
+      item.shift.name,
+      `${item.shift.start} - ${item.shift.end}`,
+      item.attendance.checkInAt ?? "",
+      item.attendance.checkInStatus ?? "",
+      item.attendance.checkOutAt ?? "",
+      item.attendance.checkOutStatus ?? "",
+      item.attendance.status,
+      item.attendance.lateMinutes,
+      item.attendance.earlyLeaveMinutes,
+      item.attendance.overtimeMinutes,
+      item.attendance.workMinutes,
+    ]);
 
-      if (exportPeriod === "DAY") {
-        const headers = [
-          "Ngay",
-          "Ma nhan vien",
-          "Nhan vien",
-          "Bo phan",
-          "Chuc vu",
-          "Ca lam",
-          "Khung gio",
-          "Checkin",
-          "Trang thai checkin",
-          "Checkout",
-          "Trang thai checkout",
-          "Trang thai",
-          "Tre (phut)",
-          "Ve som (phut)",
-          "Tang ca (phut)",
-          "Lam viec (phut)",
-        ];
-        const mapByEmployee = new Map(exportItems.map((item) => [item.employee.id, item]));
-        const rows = exportEmployees.map((employee) => {
-          const item = mapByEmployee.get(employee.id);
-          if (!item) {
-            return [
-              exportDayValue,
-              employee.code ?? "",
-              employee.fullName,
-              employee.departmentName ?? "",
-              employee.positionName ?? "",
-              "Khong co ca",
-              "-",
-              "",
-              "",
-              "",
-              "",
-              "Khong co ca",
-              0,
-              0,
-              0,
-              0,
-            ];
-          }
-          return [
-            item.date,
-            item.employee.code ?? "",
-            item.employee.fullName,
-            item.employee.departmentName ?? "",
-            item.employee.positionName ?? "",
-            item.shift.name,
-            `${item.shift.start} - ${item.shift.end}`,
-            item.attendance.checkInAt ?? "",
-            item.attendance.checkInStatus ?? "",
-            item.attendance.checkOutAt ?? "",
-            item.attendance.checkOutStatus ?? "",
-            mapStatusLabel(item.attendance.status),
-            item.attendance.lateMinutes,
-            item.attendance.earlyLeaveMinutes,
-            item.attendance.overtimeMinutes,
-            item.attendance.workMinutes,
-          ];
-        });
-        downloadCsv(`xuat-ngay-${exportDayValue}.csv`, headers, rows);
-      } else if (exportType === "PERSONAL") {
-        const headers = [
-          "Ngay",
-          "Ca lam",
-          "Khung gio",
-          "Checkin",
-          "Trang thai checkin",
-          "Checkout",
-          "Trang thai checkout",
-          "Trang thai",
-          "Tre (phut)",
-          "Ve som (phut)",
-          "Tang ca (phut)",
-          "Lam viec (phut)",
-        ];
-        const monthRange = getMonthRange(exportMonthValue);
-        if (!monthRange) throw new Error("Thang xuat khong hop le.");
-        const mapByDate = new Map(exportItems.map((item) => [item.date, item]));
-        const daysInMonth = Number(monthRange.to.slice(8, 10));
-        const rows: Array<Array<string | number>> = [];
-        let totalLate = 0;
-        let totalEarly = 0;
-        let totalOvertime = 0;
-        let totalWork = 0;
-        for (let day = 1; day <= daysInMonth; day += 1) {
-          const date = `${exportMonthValue}-${`${day}`.padStart(2, "0")}`;
-          const item = mapByDate.get(date);
-          if (!item) {
-            rows.push([date, "Khong co ca", "", "", "", "", "", "NO_SHIFT", 0, 0, 0, 0]);
-            continue;
-          }
-          totalLate += item.attendance.lateMinutes;
-          totalEarly += item.attendance.earlyLeaveMinutes;
-          totalOvertime += item.attendance.overtimeMinutes;
-          totalWork += item.attendance.workMinutes;
-          rows.push([
-            date,
-            item.shift.name,
-            `${item.shift.start} - ${item.shift.end}`,
-            item.attendance.checkInAt ?? "",
-            mapCheckInOutStatus(item.attendance.checkInStatus),
-            item.attendance.checkOutAt ?? "",
-            mapCheckInOutStatus(item.attendance.checkOutStatus),
-            mapStatusLabel(item.attendance.status),
-            item.attendance.lateMinutes,
-            item.attendance.earlyLeaveMinutes,
-            item.attendance.overtimeMinutes,
-            item.attendance.workMinutes,
-          ]);
-        }
-        rows.push([]);
-        rows.push(["TONG KET THANG", "", "", "", "", "", "", "", "", "", "", ""]);
-        rows.push(["Tong tre", totalLate, "", "", "", "", "", "", "", "", "", ""]);
-        rows.push(["Tong ve som", totalEarly, "", "", "", "", "", "", "", "", "", ""]);
-        rows.push(["Tong tang ca", totalOvertime, "", "", "", "", "", "", "", "", "", ""]);
-        rows.push(["Tong lam viec (phut)", totalWork, "", "", "", "", "", "", "", "", "", ""]);
-        downloadCsv(`xuat-thang-ca-nhan-${exportMonthValue}.csv`, headers, rows);
-      } else {
-        const grouped = new Map<
-          string,
-          {
-            code: string;
-            fullName: string;
-            departmentName: string;
-            positionName: string;
-            totalDays: number;
-            lateMinutes: number;
-            earlyLeaveMinutes: number;
-            overtimeMinutes: number;
-            workMinutes: number;
-          }
-        >();
-        exportItems.forEach((item) => {
-          const key = item.employee.id;
-          const current = grouped.get(key) ?? {
-            code: item.employee.code ?? "",
-            fullName: item.employee.fullName,
-            departmentName: item.employee.departmentName ?? "",
-            positionName: item.employee.positionName ?? "",
-            totalDays: 0,
-            lateMinutes: 0,
-            earlyLeaveMinutes: 0,
-            overtimeMinutes: 0,
-            workMinutes: 0,
-          };
-          current.totalDays += 1;
-          current.lateMinutes += item.attendance.lateMinutes;
-          current.earlyLeaveMinutes += item.attendance.earlyLeaveMinutes;
-          current.overtimeMinutes += item.attendance.overtimeMinutes;
-          current.workMinutes += item.attendance.workMinutes;
-          grouped.set(key, current);
-        });
-        const headers = [
-          "Ma nhan vien",
-          "Nhan vien",
-          "Bo phan",
-          "Chuc vu",
-          "So ngay co du lieu",
-          "Tong tre (phut)",
-          "Tong ve som (phut)",
-          "Tong tang ca (phut)",
-          "Tong lam viec (phut)",
-        ];
-        const rows = exportEmployees.map((employee) => {
-          const item = grouped.get(employee.id);
-          if (!item) {
-            return [
-              employee.code ?? "",
-              employee.fullName,
-              employee.departmentName ?? "",
-              employee.positionName ?? "",
-              0,
-              0,
-              0,
-              0,
-              0,
-            ];
-          }
-          return [
-            item.code,
-            item.fullName,
-            item.departmentName,
-            item.positionName,
-            item.totalDays,
-            item.lateMinutes,
-            item.earlyLeaveMinutes,
-            item.overtimeMinutes,
-            item.workMinutes,
-          ];
-        });
-        const suffix =
-          exportType === "ALL" ? "tat-ca" : exportType === "DEPARTMENT" ? "bo-phan" : "chuc-vu";
-        downloadCsv(`xuat-thang-${suffix}-${exportMonthValue}.csv`, headers, rows);
-      }
+    const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
 
-      setExportModalOpen(false);
-      toast.success("Da xuat CSV.");
-    } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : "Khong xuat duoc CSV.");
-    } finally {
-      setExportLoading(false);
-    }
+    const tag = document.createElement("a");
+    tag.href = url;
+    const suffix = viewMode === "DAY" ? dayValue : viewMode === "MONTH" ? monthValue : `${from}_to_${to}`;
+    tag.download = `danh-sach-cham-cong-${suffix}.csv`;
+    document.body.append(tag);
+    tag.click();
+    tag.remove();
+
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -731,7 +452,6 @@ export default function AttendanceListClient() {
                 <option key={employee.id} value={employee.id}>
                   {employee.fullName}
                   {employee.code ? ` (${employee.code})` : ""}
-                  {employee.isActive === false ? " - Da nghi" : ""}
                 </option>
               ))}
             </select>
@@ -762,7 +482,7 @@ export default function AttendanceListClient() {
           <Button onClick={fetchData} disabled={loading}>
             {loading ? "Dang tai..." : "Loc du lieu"}
           </Button>
-          <Button variant="outline" type="button" onClick={() => setExportModalOpen(true)}>
+          <Button variant="outline" type="button" onClick={exportCsv} disabled={loading || items.length === 0}>
             Xuat CSV
           </Button>
           <Button
@@ -785,122 +505,6 @@ export default function AttendanceListClient() {
           </Button>
         </div>
       </div>
-
-      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Xuat file CSV</DialogTitle>
-            <DialogDescription>
-              Chon loai xuat truoc, sau do chon thoi gian xuat theo ngay hoac theo thang.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-sm text-slate-600">1) Loai xuat</label>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                value={exportType}
-                onChange={(event) => setExportType(event.target.value as ExportType)}
-              >
-                <option value="PERSONAL">Ca nhan</option>
-                <option value="ALL">Tat ca nhan vien</option>
-                <option value="POSITION">Theo chuc vu</option>
-                <option value="DEPARTMENT">Theo bo phan</option>
-              </select>
-            </div>
-
-            {exportType === "PERSONAL" && (
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Nhan vien</label>
-                <select
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                  value={exportEmployeeId}
-                  onChange={(event) => setExportEmployeeId(event.target.value)}
-                >
-                  <option value="ALL">Chon nhan vien</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.fullName}
-                      {employee.code ? ` (${employee.code})` : ""}
-                      {employee.isActive === false ? " - Da nghi" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {exportType === "DEPARTMENT" && (
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Bo phan</label>
-                <select
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                  value={exportDepartmentId}
-                  onChange={(event) => setExportDepartmentId(event.target.value)}
-                >
-                  <option value="ALL">Chon bo phan</option>
-                  {departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {exportType === "POSITION" && (
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Chuc vu</label>
-                <select
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                  value={exportPositionId}
-                  onChange={(event) => setExportPositionId(event.target.value)}
-                >
-                  <option value="ALL">Chon chuc vu</option>
-                  {positions.map((position) => (
-                    <option key={position.id} value={position.id}>
-                      {position.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label className="text-sm text-slate-600">2) Thoi gian xuat</label>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                value={exportPeriod}
-                onChange={(event) => setExportPeriod(event.target.value as ExportPeriod)}
-              >
-                <option value="DAY">Theo ngay</option>
-                <option value="MONTH">Theo thang</option>
-              </select>
-            </div>
-
-            {exportPeriod === "DAY" ? (
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Ngay xuat</label>
-                <Input type="date" value={exportDayValue} onChange={(event) => setExportDayValue(event.target.value)} />
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Thang xuat</label>
-                <Input type="month" value={exportMonthValue} onChange={(event) => setExportMonthValue(event.target.value)} />
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setExportModalOpen(false)} disabled={exportLoading}>
-              Huy
-            </Button>
-            <Button type="button" onClick={handleExportCsv} disabled={exportLoading}>
-              {exportLoading ? "Dang xuat..." : "Xac nhan xuat CSV"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-lg border bg-white p-4">
@@ -1015,4 +619,3 @@ export default function AttendanceListClient() {
     </div>
   );
 }
-

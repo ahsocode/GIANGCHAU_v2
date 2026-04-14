@@ -115,6 +115,12 @@ export default async function EmployeeDetailPage({
             Chỉnh sửa
           </Link>
           <Link
+            href={`/nhan-vien/${detail.id}/cham-cong`}
+            className="px-3 py-2 text-sm font-semibold rounded-md border border-violet-200 text-violet-700 hover:bg-violet-50 transition"
+          >
+            Xem lịch sử chấm công
+          </Link>
+          <Link
             href={`/nhan-vien/${detail.id}/quyen-loi`}
             className="px-3 py-2 text-sm font-semibold rounded-md border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition"
           >

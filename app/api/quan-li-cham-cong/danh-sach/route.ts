@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { RoleKey } from "@/lib/rbac";
+import type { Prisma } from "@prisma/client";
 import { combineDateTimeInTimeZone, getDateOnlyInTimeZone } from "@/lib/timezone";
 
 const ALLOWED_ROLES = new Set<RoleKey>(["ADMIN", "DIRECTOR"]);
@@ -105,6 +106,8 @@ export async function GET(request: Request) {
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
     const employeeId = searchParams.get("employeeId")?.trim() || undefined;
+    const departmentId = searchParams.get("departmentId")?.trim() || undefined;
+    const positionId = searchParams.get("positionId")?.trim() || undefined;
     const query = searchParams.get("q")?.trim();
     const rawStatus = searchParams.get("status")?.trim().toUpperCase();
     const filterStatus: AttendanceFilterStatus =
@@ -149,21 +152,26 @@ export async function GET(request: Request) {
     const takeParam = Number(searchParams.get("take") ?? "2000");
     const take = Number.isFinite(takeParam) ? Math.min(Math.max(takeParam, 1), 5000) : 2000;
 
-    const [schedules, employees] = await Promise.all([
+    const employeeWhere: Prisma.EmployeeWhereInput = {};
+    if (departmentId) {
+      employeeWhere.departmentId = departmentId;
+    }
+    if (positionId) {
+      employeeWhere.positionId = positionId;
+    }
+    if (query) {
+      employeeWhere.OR = [
+        { fullName: { contains: query, mode: "insensitive" } },
+        { code: { contains: query, mode: "insensitive" } },
+      ];
+    }
+
+    const [schedules, employees, departments, positions] = await Promise.all([
       prisma.workSchedule.findMany({
         where: {
           date: { gte: start, lte: end },
           ...(employeeId ? { employeeId } : {}),
-          ...(query
-            ? {
-                employee: {
-                  OR: [
-                    { fullName: { contains: query, mode: "insensitive" } },
-                    { code: { contains: query, mode: "insensitive" } },
-                  ],
-                },
-              }
-            : {}),
+          ...(Object.keys(employeeWhere).length > 0 ? { employee: employeeWhere } : {}),
         },
         include: {
           employee: {
@@ -172,6 +180,14 @@ export async function GET(request: Request) {
               code: true,
               fullName: true,
               isActive: true,
+              departmentId: true,
+              positionId: true,
+              department: {
+                select: { id: true, name: true },
+              },
+              position: {
+                select: { id: true, name: true },
+              },
             },
           },
           attendance: {
@@ -193,9 +209,33 @@ export async function GET(request: Request) {
         take,
       }),
       prisma.employee.findMany({
-        where: { isActive: true },
-        select: { id: true, code: true, fullName: true },
-        orderBy: { fullName: "asc" },
+        where: {
+          ...(departmentId ? { departmentId } : {}),
+          ...(positionId ? { positionId } : {}),
+        },
+        select: {
+          id: true,
+          code: true,
+          fullName: true,
+          isActive: true,
+          departmentId: true,
+          positionId: true,
+          department: {
+            select: { name: true },
+          },
+          position: {
+            select: { name: true },
+          },
+        },
+        orderBy: [{ isActive: "desc" }, { fullName: "asc" }],
+      }),
+      prisma.department.findMany({
+        select: { id: true, code: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.position.findMany({
+        select: { id: true, code: true, name: true },
+        orderBy: { name: "asc" },
       }),
     ]);
 
@@ -233,6 +273,10 @@ export async function GET(request: Request) {
           code: schedule.employee.code,
           fullName: schedule.employee.fullName,
           isActive: schedule.employee.isActive,
+          departmentId: schedule.employee.departmentId,
+          departmentName: schedule.employee.department?.name ?? null,
+          positionId: schedule.employee.positionId,
+          positionName: schedule.employee.position?.name ?? null,
         },
         shift: {
           name: schedule.plannedName,
@@ -262,10 +306,24 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       items,
-      employees,
+      employees: employees.map((employee) => ({
+        id: employee.id,
+        code: employee.code,
+        fullName: employee.fullName,
+        isActive: employee.isActive,
+        departmentId: employee.departmentId,
+        departmentName: employee.department?.name ?? null,
+        positionId: employee.positionId,
+        positionName: employee.position?.name ?? null,
+      })),
+      departments,
+      positions,
       filters: {
         from: start.toISOString().slice(0, 10),
         to: end.toISOString().slice(0, 10),
+        employeeId: employeeId ?? "ALL",
+        departmentId: departmentId ?? "ALL",
+        positionId: positionId ?? "ALL",
         status: filterStatus,
       },
       total: items.length,
